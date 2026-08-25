@@ -6,7 +6,8 @@
 ## 문서
 
 - [`docs/dev-plan.html`](docs/dev-plan.html) — 개발 계획서(게임 흐름, 아키텍처, 데이터 모델, 사이드 베팅 배당, 로드맵)
-- [`docs/ui-mockup.html`](docs/ui-mockup.html) — 카드 뒷면 · 베팅 화면 UI 목업, 드래그 쪼기 인터랙션 데모
+- [`docs/ui-mockup.html`](docs/ui-mockup.html) — 카드 뒷면 · 베팅 화면 UI 목업, Canvas 2D 물결 쪼기 데모 포함
+- [`docs/squeeze-prototype.html`](docs/squeeze-prototype.html) — 카드 쪼기 인터랙션 단독 프로토타입(화면 전체가 카드, 4변 어디서든 스퀴즈 가능)
 
 각 문서를 브라우저로 열면 확인할 수 있습니다.
 
