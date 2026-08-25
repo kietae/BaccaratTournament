@@ -76,7 +76,7 @@ async function dragTo(page, x0, y0, x1, y1, steps) {
   console.log('readout after mid release:', await readout());
 
   // max long-edge squeeze then release past threshold -> full reveal
-  await dragTo(page, rightEdgeX, midY, rightEdgeX - box.w * 0.62, midY, 16);
+  await dragTo(page, rightEdgeX, midY, rightEdgeX - box.w * 0.75, midY, 16);
   await page.waitForTimeout(80);
   await shot('08-squeeze-max.png');
   console.log('readout @max:', await readout());

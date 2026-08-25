@@ -503,11 +503,30 @@
   drawBack(backTex.getContext('2d'), TW, TH);
   drawFront(frontTex.getContext('2d'), TW, TH);
 
-  var state = { dragging: false, revealed: false, edge: null, F0: { x: 0, y: 0 }, F: { x: 0, y: 0 }, target: null, everTouched: false };
-  var CURL_R = 34;
-  var LONG_EDGES = { left: true, right: true };
-  var LONG_DEPTH_FRAC = 0.40;
-  var CAP_MARGIN_FRAC = 0.15;
+  var DEBUG = false; // production look: no wireframe/grabError overlay in the real screen
+
+  var START_ZONE_PX = 28;
+  var BUMP_WIDTH = 16;
+  var BUMP_HEIGHT = 18;
+  var FULL_REVEAL_DEPTH_FRAC = 0.62;
+  var EDGE_CFG = {
+    right: { axis: 'x', sign: 1 },
+    left: { axis: 'x', sign: -1 },
+    top: { axis: 'y', sign: -1 },
+    bottom: { axis: 'y', sign: 1 }
+  };
+  function nearestEdge(x, y) {
+    var d = { left: x, right: W - x, top: y, bottom: H - y };
+    var best = 'left', bd = d.left;
+    for (var k in d) if (d[k] < bd) { bd = d[k]; best = k; }
+    return { edge: best, dist: bd };
+  }
+  function cardExtentFor(edge) { return (edge === 'left' || edge === 'right') ? W : H; }
+
+  var state = {
+    dragging: false, revealed: false, everTouched: false,
+    edge: null, F0: null, pointer: null, target: null
+  };
 
   function resize() {
     var rect = canvas.getBoundingClientRect();
@@ -523,64 +542,37 @@
     var rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
-  function edgeFor(x, y) {
-    var dl = x, dr = W - x, dt = y, db = H - y;
-    var m = Math.min(dl, dr, dt, db);
-    if (m === dl) return 'left';
-    if (m === dr) return 'right';
-    if (m === dt) return 'top';
-    return 'bottom';
-  }
-  function anchorFor(edge, x, y) {
-    if (edge === 'left') return { x: 0, y: y };
-    if (edge === 'right') return { x: W, y: y };
-    if (edge === 'top') return { x: x, y: 0 };
-    return { x: x, y: H };
-  }
-  function edgeLabel(e) { return { left: '왼쪽(긴 변)', right: '오른쪽(긴 변)', top: '위(짧은 변)', bottom: '아래(짧은 변)' }[e] || e; }
   function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
   function onDown(e) {
     if (state.revealed) return;
     var p = pointerLocal(e);
-    state.edge = edgeFor(p.x, p.y);
-    state.F0 = anchorFor(state.edge, p.x, p.y);
+    var ne = nearestEdge(p.x, p.y);
+    if (ne.dist > START_ZONE_PX) return;
     state.dragging = true; state.target = null; state.everTouched = true;
-    state.F = { x: p.x, y: p.y };
+    state.edge = ne.edge;
+    state.F0 = { x: p.x, y: p.y };
+    state.pointer = { x: p.x, y: p.y };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   }
   function onMove(e) {
     if (!state.dragging) return;
     var p = pointerLocal(e);
-    var fx = p.x, fy = p.y;
-    if (LONG_EDGES[state.edge]) {
-      var dx0 = fx - state.F0.x, dy0 = fy - state.F0.y;
-      var dist0 = Math.hypot(dx0, dy0);
-      var maxDepth = W * LONG_DEPTH_FRAC;
-      if (dist0 > maxDepth) {
-        var s0 = maxDepth / dist0;
-        fx = state.F0.x + dx0 * s0;
-        fy = state.F0.y + dy0 * s0;
-      }
-    }
-    state.F = {
-      x: Math.max(-W * 0.3, Math.min(W * 1.1, fx)),
-      y: Math.max(-H * 0.3, Math.min(H * 1.1, fy))
+    state.pointer = {
+      x: Math.max(-W * 0.5, Math.min(W * 1.2, p.x)),
+      y: Math.max(-H * 0.5, Math.min(H * 1.2, p.y))
     };
   }
   function onUp() {
     if (!state.dragging) return;
     state.dragging = false;
-    if (LONG_EDGES[state.edge]) {
-      state.target = { x: state.F0.x, y: state.F0.y, full: false };
-      vibrate(8);
-      return;
-    }
-    var dx = state.F.x - state.F0.x, dy = state.F.y - state.F0.y;
-    var dist = Math.sqrt(dx * dx + dy * dy);
-    var diag = Math.sqrt(W * W + H * H);
-    if (dist > diag * 0.55) {
-      state.target = { x: -W * 0.2, y: -H * 0.2, full: true };
+    var geo = computeGeometry();
+    if (!geo) { state.target = { x: state.F0.x, y: state.F0.y, full: false }; return; }
+    if (geo.depthF0 > cardExtentFor(state.edge) * FULL_REVEAL_DEPTH_FRAC) {
+      var dirLen = Math.hypot(geo.n.x, geo.n.y) || 1;
+      var ux = geo.n.x / dirLen, uy = geo.n.y / dirLen;
+      var throwDist = Math.hypot(W, H) * 1.5;
+      state.target = { x: state.F0.x + ux * throwDist, y: state.F0.y + uy * throwDist, full: true };
       vibrate(28);
     } else {
       state.target = { x: state.F0.x, y: state.F0.y, full: false };
@@ -592,12 +584,13 @@
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
   resetBtn.addEventListener('click', function () {
-    state.revealed = false; state.dragging = false; state.target = null; state.edge = null;
-    state.F = { x: 0, y: 0 }; state.F0 = { x: 0, y: 0 };
+    state.revealed = false; state.dragging = false; state.target = null;
+    state.F0 = null; state.pointer = null; state.edge = null;
   });
 
-  function clipPoly(poly, mx, my, nx, ny, keepPos) {
+  function clipHalfPlane(poly, mx, my, nx, ny, keepPos) {
     var out = [], n = poly.length;
+    if (n === 0) return out;
     for (var i = 0; i < n; i++) {
       var cur = poly[i], prev = poly[(i + n - 1) % n];
       var sCur = (cur.x - mx) * nx + (cur.y - my) * ny;
@@ -616,6 +609,23 @@
       }
     }
     return out;
+  }
+  function clipByConvex(subject, clip) {
+    if (clip.length < 3) return [];
+    var cx = 0, cy = 0;
+    for (var i = 0; i < clip.length; i++) { cx += clip[i].x; cy += clip[i].y; }
+    cx /= clip.length; cy /= clip.length;
+    var result = subject;
+    for (var e = 0; e < clip.length && result.length > 0; e++) {
+      var p0 = clip[e], p1 = clip[(e + 1) % clip.length];
+      var ex = p1.x - p0.x, ey = p1.y - p0.y;
+      var nx = -ey, ny = ex;
+      var len = Math.hypot(nx, ny) || 1;
+      nx /= len; ny /= len;
+      if ((cx - p0.x) * nx + (cy - p0.y) * ny < 0) { nx = -nx; ny = -ny; }
+      result = clipHalfPlane(result, p0.x, p0.y, nx, ny, true);
+    }
+    return result;
   }
   function affine(dx0, dy0, dx1, dy1, dx2, dy2, u0, v0, u1, v1, u2, v2) {
     var den = u0 * (v1 - v2) + u1 * (v2 - v0) + u2 * (v0 - v1);
@@ -640,16 +650,49 @@
     ctx.restore();
   }
 
+  function computeGeometry() {
+    if (!state.F0 || !state.pointer || !state.edge) return null;
+    var F0 = state.F0;
+    var cfg = EDGE_CFG[state.edge];
+    var F0axis = cfg.axis === 'x' ? F0.x : F0.y;
+    var ptrAxis = cfg.axis === 'x' ? state.pointer.x : state.pointer.y;
+    var depthF0 = Math.max(0, cfg.sign * (F0axis - ptrAxis));
+    if (depthF0 < 0.5) return null;
+    var effAxis = F0axis - cfg.sign * depthF0;
+    var F = cfg.axis === 'x' ? { x: effAxis, y: state.pointer.y } : { x: state.pointer.x, y: effAxis };
+
+    var dx = F.x - F0.x, dy = F.y - F0.y;
+    var len = Math.hypot(dx, dy);
+    if (len < 0.5) return null;
+    var nx = dx / len, ny = dy / len;
+    var tx = -ny, ty = nx;
+    var mx = (F0.x + F.x) / 2, my = (F0.y + F.y) / 2;
+    return { F0: F0, F: F, n: { x: nx, y: ny }, t: { x: tx, y: ty }, m: { x: mx, y: my }, depthF0: depthF0 };
+  }
+
+  // alongN == depth always (exact reflection); only z bumps and settles
+  // back to 0 in a narrow band near the crease. See squeeze-prototype.html
+  // for the full derivation of why this trade-off guarantees grabError ~0.
+  function curl(depth) {
+    if (depth >= BUMP_WIDTH) return { alongN: depth, z: 0 };
+    var theta = (depth / BUMP_WIDTH) * Math.PI;
+    return { alongN: depth, z: BUMP_HEIGHT * (1 - Math.cos(theta)) / 2, theta: theta };
+  }
+
   function render() {
     ctx.clearRect(0, 0, W, H);
 
     if (state.target) {
-      state.F.x += (state.target.x - state.F.x) * 0.24;
-      state.F.y += (state.target.y - state.F.y) * 0.24;
-      var settleDist = Math.hypot(state.target.x - state.F.x, state.target.y - state.F.y);
-      if (settleDist < 1.5) {
-        if (state.target.full) state.revealed = true;
-        state.F = { x: state.F0.x, y: state.F0.y };
+      state.pointer = state.pointer || { x: state.F0.x, y: state.F0.y };
+      state.pointer.x += (state.target.x - state.pointer.x) * 0.24;
+      state.pointer.y += (state.target.y - state.pointer.y) * 0.24;
+      var settleDist = Math.hypot(state.target.x - state.pointer.x, state.target.y - state.pointer.y);
+      if (settleDist < 2) {
+        if (state.target.full) {
+          state.revealed = true;
+        } else {
+          state.F0 = null; state.pointer = null; state.edge = null;
+        }
         state.target = null;
       }
     }
@@ -661,22 +704,19 @@
       return;
     }
 
-    var F0 = state.F0, F = state.F;
-    var dx = F.x - F0.x, dy = F.y - F0.y;
-    var dragLen = Math.hypot(dx, dy);
-
-    if (dragLen < 1) {
+    var geo = computeGeometry();
+    if (!geo) {
       ctx.drawImage(backTex, 0, 0, TW, TH, 0, 0, W, H);
       if (!state.everTouched) {
         ctx.save();
         ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 500);
         ctx.fillStyle = '#D8B15C';
-        ctx.font = '16px sans-serif';
+        ctx.font = '14px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('◀', 12, H / 2);
-        ctx.fillText('▶', W - 12, H / 2);
-        ctx.fillText('▲', W / 2, 14);
-        ctx.fillText('▼', W / 2, H - 14);
+        ctx.fillText('◀', START_ZONE_PX / 2, H / 2);
+        ctx.fillText('▶', W - START_ZONE_PX / 2, H / 2);
+        ctx.fillText('▲', W / 2, START_ZONE_PX / 2);
+        ctx.fillText('▼', W / 2, H - START_ZONE_PX / 2);
         ctx.restore();
       }
       readout.textContent = '대기 중';
@@ -684,114 +724,93 @@
       return;
     }
 
-    var nx = dx / dragLen, ny = dy / dragLen;
-    var tx = -ny, ty = nx;
-    var mx = (F0.x + F.x) / 2, my = (F0.y + F.y) / 2;
-
+    var F0 = geo.F0, F = geo.F, nx = geo.n.x, ny = geo.n.y, tx = geo.t.x, ty = geo.t.y, mx = geo.m.x, my = geo.m.y;
     var rectPoly = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
-    var bodyPoly = clipPoly(rectPoly, mx, my, nx, ny, true);
-    var rawFlapPoly = clipPoly(rectPoly, mx, my, nx, ny, false);
-    var flapPoly = rawFlapPoly;
-    var flatExtras = [];
+    var bodyPoly = clipHalfPlane(rectPoly, mx, my, nx, ny, true);
+    var flapPoly = clipHalfPlane(rectPoly, mx, my, nx, ny, false);
 
-    if (LONG_EDGES[state.edge] && rawFlapPoly.length >= 3) {
-      var capMargin = H * CAP_MARGIN_FRAC;
-      var topExcluded = clipPoly(rawFlapPoly, 0, capMargin, 0, -1, true);
-      var botExcluded = clipPoly(rawFlapPoly, 0, H - capMargin, 0, 1, true);
-      if (topExcluded.length >= 3) flatExtras.push(topExcluded);
-      if (botExcluded.length >= 3) flatExtras.push(botExcluded);
-      flapPoly = clipPoly(rawFlapPoly, 0, capMargin, 0, 1, true);
-      flapPoly = clipPoly(flapPoly, 0, H - capMargin, 0, -1, true);
-    }
-
-    function drawFlat(poly) {
-      if (poly.length < 3) return;
+    if (bodyPoly.length >= 3) {
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(poly[0].x, poly[0].y);
-      for (var pi = 1; pi < poly.length; pi++) ctx.lineTo(poly[pi].x, poly[pi].y);
+      ctx.moveTo(bodyPoly[0].x, bodyPoly[0].y);
+      for (var bi = 1; bi < bodyPoly.length; bi++) ctx.lineTo(bodyPoly[bi].x, bodyPoly[bi].y);
       ctx.closePath(); ctx.clip();
       ctx.drawImage(backTex, 0, 0, TW, TH, 0, 0, W, H);
       ctx.restore();
     }
-    drawFlat(bodyPoly);
-    for (var fx2 = 0; fx2 < flatExtras.length; fx2++) drawFlat(flatExtras[fx2]);
+
+    var cx = W / 2, cy = H / 2, D = Math.max(W, H) * 2.6;
+    function project(x, y, z) { var f = D / (D - z); return { x: cx + (x - cx) * f, y: cy + (y - cy) * f }; }
+    function vertexAt(px, py) {
+      var vx = px - mx, vy = py - my;
+      var depth = vx * (-nx) + vy * (-ny);
+      var t = vx * tx + vy * ty;
+      var cu = curl(Math.max(0, depth));
+      var wx = mx + cu.alongN * nx + t * tx;
+      var wy = my + cu.alongN * ny + t * ty;
+      var scr = project(wx, wy, cu.z);
+      return { sx: px, sy: py, dx: scr.x, dy: scr.y, z: cu.z, theta: cu.theta || 0 };
+    }
 
     if (flapPoly.length >= 3) {
       var dMax = 0, tMin = Infinity, tMax = -Infinity;
       for (var fi = 0; fi < flapPoly.length; fi++) {
         var pt = flapPoly[fi];
-        var s = (pt.x - mx) * nx + (pt.y - my) * ny;
-        var d = -s;
-        var t = (pt.x - mx) * tx + (pt.y - my) * ty;
-        if (d > dMax) dMax = d;
+        var vx = pt.x - mx, vy = pt.y - my;
+        var depth = vx * (-nx) + vy * (-ny);
+        var t = vx * tx + vy * ty;
+        if (depth > dMax) dMax = depth;
         if (t < tMin) tMin = t;
         if (t > tMax) tMax = t;
       }
       dMax = Math.max(dMax, 4);
       if (tMax - tMin < 2) { tMin -= 2; tMax += 2; }
 
-      var DSEG = 12, TSEG = 9;
-      var dStep = dMax / DSEG, tStep = (tMax - tMin) / TSEG;
-
-      function curl(d) {
-        var phi = Math.min(d / CURL_R, 1) * Math.PI;
-        return { alongN: -d * Math.cos(phi), z: CURL_R * Math.sin(phi) };
+      var levels = [];
+      var innerSteps = 9, outerSteps = 6;
+      var innerMax = Math.min(dMax, BUMP_WIDTH * 1.6);
+      for (var i = 0; i <= innerSteps; i++) levels.push(i / innerSteps * innerMax);
+      if (dMax > innerMax) {
+        for (var j = 1; j <= outerSteps; j++) levels.push(innerMax + j / outerSteps * (dMax - innerMax));
       }
-      function worldAt(d, t) { return { x: mx - d * nx + t * tx, y: my - d * ny + t * ty }; }
-      function curledAt(d, t) {
-        var cu = curl(d);
-        return { x: mx + cu.alongN * nx + t * tx, y: my + cu.alongN * ny + t * ty, z: cu.z };
-      }
-
-      var cx = W / 2, cy = H / 2, D = Math.max(W, H) * 2.6;
-      function project(p) {
-        var f = D / (D - p.z);
-        return { x: cx + (p.x - cx) * f, y: cy + (p.y - cy) * f };
-      }
-
-      var pts = [];
-      for (var di = 0; di <= DSEG; di++) {
-        var row = [];
-        var d0 = di * dStep;
-        for (var ti = 0; ti <= TSEG; ti++) {
-          var t0 = tMin + ti * tStep;
-          var rest = worldAt(d0, t0);
-          var ok = rest.x >= -2 && rest.x <= W + 2 && rest.y >= -2 && rest.y <= H + 2;
-          var curled = curledAt(d0, t0);
-          var screen = project(curled);
-          row.push({ sx: rest.x, sy: rest.y, dx: screen.x, dy: screen.y, z: curled.z, ok: ok });
-        }
-        pts.push(row);
-      }
-
-      ctx.save();
-      ctx.globalAlpha = 0.28;
-      ctx.filter = 'blur(9px)';
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      var edgeRow = pts[DSEG];
-      for (var ei = 0; ei <= TSEG; ei++) {
-        var pe = edgeRow[ei];
-        if (ei === 0) ctx.moveTo(pe.dx, pe.dy); else ctx.lineTo(pe.dx, pe.dy);
-      }
-      for (var ei2 = TSEG; ei2 >= 0; ei2--) {
-        var pe2 = pts[0][ei2];
-        ctx.lineTo(pe2.dx, pe2.dy);
-      }
-      ctx.closePath(); ctx.fill();
-      ctx.restore();
+      var TSEG = 7;
+      var tStep = (tMax - tMin) / TSEG;
 
       var tris = [];
-      for (var di2 = 0; di2 < DSEG; di2++) {
-        for (var ti2 = 0; ti2 < TSEG; ti2++) {
-          var p00 = pts[di2][ti2], p10 = pts[di2 + 1][ti2], p01 = pts[di2][ti2 + 1], p11 = pts[di2 + 1][ti2 + 1];
-          if (!(p00.ok || p10.ok || p01.ok || p11.ok)) continue;
-          tris.push({ z: (p00.z + p10.z + p01.z) / 3, a: p00, b: p10, c: p01 });
-          tris.push({ z: (p10.z + p11.z + p01.z) / 3, a: p10, b: p11, c: p01 });
+      for (var li = 0; li < levels.length - 1; li++) {
+        var d0 = levels[li], d1 = levels[li + 1];
+        for (var ti = 0; ti < TSEG; ti++) {
+          var t0 = tMin + ti * tStep, t1 = tMin + (ti + 1) * tStep;
+          var cellRest = [
+            { x: mx - d0 * nx + t0 * tx, y: my - d0 * ny + t0 * ty },
+            { x: mx - d1 * nx + t0 * tx, y: my - d1 * ny + t0 * ty },
+            { x: mx - d1 * nx + t1 * tx, y: my - d1 * ny + t1 * ty },
+            { x: mx - d0 * nx + t1 * tx, y: my - d0 * ny + t1 * ty }
+          ];
+          var clipped = clipByConvex(cellRest, flapPoly);
+          if (clipped.length < 3) continue;
+          for (var k = 1; k < clipped.length - 1; k++) {
+            var a = vertexAt(clipped[0].x, clipped[0].y);
+            var b = vertexAt(clipped[k].x, clipped[k].y);
+            var c = vertexAt(clipped[k + 1].x, clipped[k + 1].y);
+            tris.push({ a: a, b: b, c: c, z: (a.z + b.z + c.z) / 3, theta: (a.theta + b.theta + c.theta) / 3 });
+          }
         }
       }
-      tris.sort(function (t1, t2) { return t1.z - t2.z; });
+      tris.sort(function (p, q) { return p.z - q.z; });
+
+      var peak = tris.length ? tris[tris.length - 1] : null;
+      var maxZ = 0;
+      for (var pz = 0; pz < tris.length; pz++) if (tris[pz].z > maxZ) maxZ = tris[pz].z;
+      if (maxZ > 1 && peak) {
+        var shR = Math.max(18, maxZ * 3.2);
+        var grad = ctx.createRadialGradient(peak.a.dx, peak.a.dy + shR * 0.25, 2, peak.a.dx, peak.a.dy + shR * 0.25, shR);
+        grad.addColorStop(0, 'rgba(0,0,0,0.30)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.ellipse(peak.a.dx, peak.a.dy + shR * 0.25, shR, shR * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+      }
+
       for (var qi = 0; qi < tris.length; qi++) {
         var tri = tris[qi];
         drawTri(frontTex,
@@ -799,19 +818,23 @@
           tri.b.sx / W * TW, tri.b.sy / H * TH,
           tri.c.sx / W * TW, tri.c.sy / H * TH,
           tri.a.dx, tri.a.dy, tri.b.dx, tri.b.dy, tri.c.dx, tri.c.dy);
-        var lt = Math.max(0, Math.min(1, tri.z / CURL_R));
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(tri.a.dx, tri.a.dy); ctx.lineTo(tri.b.dx, tri.b.dy); ctx.lineTo(tri.c.dx, tri.c.dy); ctx.closePath();
-        ctx.fillStyle = 'rgba(255,240,210,' + (0.22 * lt) + ')';
-        ctx.fill();
-        ctx.restore();
+        var slopeCue = Math.sin(tri.theta);
+        if (slopeCue > 0.05) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(tri.a.dx, tri.a.dy); ctx.lineTo(tri.b.dx, tri.b.dy); ctx.lineTo(tri.c.dx, tri.c.dy); ctx.closePath();
+          ctx.fillStyle = 'rgba(10,8,14,' + (0.34 * slopeCue) + ')';
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,240,210,' + (0.16 * slopeCue) + ')';
+          ctx.fill();
+          ctx.restore();
+        }
       }
     }
 
-    var pctBase = LONG_EDGES[state.edge] ? (W * LONG_DEPTH_FRAC) : (Math.hypot(W, H) * 0.55);
-    var pct = Math.round(Math.min(1, dragLen / pctBase) * 100);
-    readout.textContent = edgeLabel(state.edge) + ' · ' + pct + '%';
+    var edgeNames = { left: '왼쪽', right: '오른쪽', top: '위', bottom: '아래' };
+    var pct = Math.round(Math.min(1, geo.depthF0 / (cardExtentFor(state.edge) * FULL_REVEAL_DEPTH_FRAC)) * 100);
+    readout.textContent = edgeNames[state.edge] + ' · ' + pct + '%';
 
     requestAnimationFrame(render);
   }

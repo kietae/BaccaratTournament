@@ -17,8 +17,8 @@
 
 <div class="page">
   <header>
-    <h1>바카라 스퀴즈 프로토타입 — 오른쪽 긴 변 (v2)</h1>
-    <p>오른쪽 가장자리 48px 이내에서만 시작 · 실제 반사 기하 검증용</p>
+    <h1>바카라 스퀴즈 프로토타입 — 4변 (v3)</h1>
+    <p>어느 가장자리든 48px 이내에서 시작 · 실제 반사 기하 검증용</p>
   </header>
   <div class="stage">
     <canvas id="cardCanvas"></canvas>
@@ -135,10 +135,27 @@
   // ---------------------------------------------------------------
   // Geometry constants
   // ---------------------------------------------------------------
-  var START_ZONE_PX = 48;   // only the right 48px strip can start a squeeze
+  var START_ZONE_PX = 48;   // only within this many px of an edge can a squeeze start
   var BUMP_WIDTH = 26;      // px of depth over which the crease rounds
   var BUMP_HEIGHT = 30;     // px of visual lift at the crease's peak
-  var FULL_REVEAL_DEPTH_FRAC = 0.62; // fraction of card width to trigger full reveal on release
+  var FULL_REVEAL_DEPTH_FRAC = 0.62; // fraction of the relevant card dimension to trigger full reveal
+
+  // Which pointer axis measures "into the card" for each edge, and which
+  // sign of movement along that axis counts as depth (the other axis is
+  // free — it only rotates the fold, per the spec).
+  var EDGE_CFG = {
+    right: { axis: 'x', sign: 1 },   // depth = max(0, F0.x - pointer.x): dragging left increases depth
+    left: { axis: 'x', sign: -1 },   // depth = max(0, pointer.x - F0.x): dragging right increases depth
+    top: { axis: 'y', sign: -1 },    // depth = max(0, pointer.y - F0.y): dragging down increases depth
+    bottom: { axis: 'y', sign: 1 }   // depth = max(0, F0.y - pointer.y): dragging up increases depth
+  };
+  function nearestEdge(x, y) {
+    var d = { left: x, right: W - x, top: y, bottom: H - y };
+    var best = 'left', bd = d.left;
+    for (var k in d) if (d[k] < bd) { bd = d[k]; best = k; }
+    return { edge: best, dist: bd };
+  }
+  function cardExtentFor(edge) { return (edge === 'left' || edge === 'right') ? W : H; }
 
   // ---------------------------------------------------------------
   // State
@@ -147,6 +164,7 @@
     dragging: false,
     revealed: false,
     everTouched: false,
+    edge: null,       // 'left' | 'right' | 'top' | 'bottom'
     F0: null,        // the exact point first touched (world coords)
     pointer: null,    // raw current pointer position
     target: null,     // release animation target { x, y, full }
@@ -172,10 +190,12 @@
   function onDown(e) {
     if (state.revealed) return;
     var p = pointerLocal(e);
-    if ((W - p.x) > START_ZONE_PX) return; // outside the right-edge start zone: ignore
+    var ne = nearestEdge(p.x, p.y);
+    if (ne.dist > START_ZONE_PX) return; // not within the start zone of any edge: ignore
     state.dragging = true;
     state.target = null;
     state.everTouched = true;
+    state.edge = ne.edge;
     state.F0 = { x: p.x, y: p.y };   // the exact grabbed point — no snapping to the edge line
     state.pointer = { x: p.x, y: p.y };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -193,7 +213,7 @@
     state.dragging = false;
     var geo = computeGeometry();
     if (!geo) { state.target = { x: state.F0.x, y: state.F0.y, full: false }; return; }
-    if (geo.depthF0 > W * FULL_REVEAL_DEPTH_FRAC) {
+    if (geo.depthF0 > cardExtentFor(state.edge) * FULL_REVEAL_DEPTH_FRAC) {
       // Continue in the same direction the user was already dragging, off-screen.
       var dirLen = Math.hypot(geo.n.x, geo.n.y) || 1;
       var ux = geo.n.x / dirLen, uy = geo.n.y / dirLen;
@@ -211,7 +231,7 @@
   canvas.addEventListener('pointercancel', onUp);
   resetBtn.addEventListener('click', function () {
     state.revealed = false; state.dragging = false; state.target = null;
-    state.F0 = null; state.pointer = null;
+    state.F0 = null; state.pointer = null; state.edge = null;
   });
   debugBtn.addEventListener('click', function () {
     DEBUG = !DEBUG;
@@ -299,14 +319,17 @@
   // no fold to show (not dragging / dragging but depth <= 0).
   // ---------------------------------------------------------------
   function computeGeometry() {
-    if (!state.F0 || !state.pointer) return null;
+    if (!state.F0 || !state.pointer || !state.edge) return null;
     var F0 = state.F0;
-    // Depth is the *normal* (rightward-edge-relative) component only —
-    // vertical pointer motion must not add depth, only rotate the fold axis.
-    var effX = Math.min(state.pointer.x, F0.x);
-    var F = { x: effX, y: state.pointer.y };
-    var depthF0 = F0.x - effX; // >= 0 by construction
+    var cfg = EDGE_CFG[state.edge];
+    // Depth is the *normal* (edge-relative) component only — motion along
+    // the other axis must not add depth, only rotate the fold axis.
+    var F0axis = cfg.axis === 'x' ? F0.x : F0.y;
+    var ptrAxis = cfg.axis === 'x' ? state.pointer.x : state.pointer.y;
+    var depthF0 = Math.max(0, cfg.sign * (F0axis - ptrAxis));
     if (depthF0 < 0.5) return null;
+    var effAxis = F0axis - cfg.sign * depthF0;
+    var F = cfg.axis === 'x' ? { x: effAxis, y: state.pointer.y } : { x: state.pointer.x, y: effAxis };
 
     var dx = F.x - F0.x, dy = F.y - F0.y;
     var len = Math.hypot(dx, dy);
@@ -344,7 +367,7 @@
         if (state.target.full) {
           state.revealed = true;
         } else {
-          state.F0 = null; state.pointer = null;
+          state.F0 = null; state.pointer = null; state.edge = null;
         }
         state.target = null;
       }
@@ -365,6 +388,9 @@
         ctx.save();
         ctx.strokeStyle = 'rgba(216,177,92,0.6)'; ctx.lineWidth = 2;
         ctx.strokeRect(W - START_ZONE_PX, 0, START_ZONE_PX, H);
+        ctx.strokeRect(0, 0, START_ZONE_PX, H);
+        ctx.strokeRect(0, 0, W, START_ZONE_PX);
+        ctx.strokeRect(0, H - START_ZONE_PX, W, START_ZONE_PX);
         ctx.restore();
       }
       if (!state.everTouched) {
@@ -373,7 +399,10 @@
         ctx.fillStyle = '#D8B15C';
         ctx.font = '16px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('◀ 여기서 시작', W - START_ZONE_PX / 2, H / 2);
+        ctx.fillText('◀', W - START_ZONE_PX / 2, H / 2);
+        ctx.fillText('▶', START_ZONE_PX / 2, H / 2);
+        ctx.fillText('▲', W / 2, START_ZONE_PX / 2);
+        ctx.fillText('▼', W / 2, H - START_ZONE_PX / 2);
         ctx.restore();
       }
       edgeReadout.textContent = '대기 중';
@@ -550,9 +579,10 @@
       ctx.restore();
     }
 
-    var pct = Math.round(Math.min(1, geo.depthF0 / (W * FULL_REVEAL_DEPTH_FRAC)) * 100);
+    var pct = Math.round(Math.min(1, geo.depthF0 / (cardExtentFor(state.edge) * FULL_REVEAL_DEPTH_FRAC)) * 100);
+    var edgeNames = { left: '왼쪽', right: '오른쪽', top: '위', bottom: '아래' };
     var lines = [
-      '깊이 ' + Math.round(geo.depthF0) + 'px (' + pct + '%)',
+      edgeNames[state.edge] + ' · 깊이 ' + Math.round(geo.depthF0) + 'px (' + pct + '%)',
       'grabError ' + (grabError !== null ? grabError.toFixed(2) : '-') + 'px',
       '삼각형 ' + triCount + '개'
     ];
