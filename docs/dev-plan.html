@@ -422,12 +422,12 @@
 <div class="page">
 
   <header class="hero">
-    <span class="eyebrow">개발 계획서 · v0.3 초안</span>
+    <span class="eyebrow">개발 계획서 · v0.4 초안</span>
     <h1 class="title">바카라 토너먼트 앱</h1>
-    <p class="subtitle">사내 직원 이벤트용 모바일 바카라 토너먼트. QR로 접속해 닉네임만으로 참가하고, 정해진 판수 동안 실시간으로 베팅하며, 최고 배팅자가 직접 카드를 쪼는다. 최대 500명 동시 접속을 목표로 하며, 매도(빅로드)와 딜러 콜이 전 참가자에게 동기화 재생된다.</p>
+    <p class="subtitle">사내 직원 이벤트용 모바일 바카라 토너먼트. QR로 접속해 닉네임만으로 참가하고, 정해진 판수 동안 실시간으로 베팅하며, 최고 배팅자가 가로 → 세로 순서로 카드를 직접 쪼는다. 최대 500명 동시 접속을 목표로 하며, 매도(빅로드)와 딜러 콜이 전 참가자에게 동기화 재생된다.</p>
     <div class="meta-row">
       <span>작성일 <b>2026-08-25</b></span>
-      <span>상태 <b>규모 · 배당정책 · 동률처리 · 재접속 · 배포환경 확정 · 사이드벳 배당 확인 대기</b></span>
+      <span>상태 <b>3번째 카드 규칙 문서화 · 쪼기 2단계 순서 확정 · 칩 6종 확정 · 사이드벳 배당 확인 대기</b></span>
       <span>대상 독자 <b>기획 · 개발팀</b></span>
     </div>
     <div class="road-motif">
@@ -468,17 +468,18 @@
       <span class="toc-label">목차</span>
       <a href="#overview">01 개요</a>
       <a href="#flow">02 게임 흐름</a>
-      <a href="#roles">03 역할별 기능</a>
-      <a href="#squeeze">04 카드 쪼기 설계</a>
-      <a href="#calling">05 딜러 콜링</a>
-      <a href="#architecture">06 시스템 아키텍처</a>
-      <a href="#data-model">07 데이터 모델</a>
-      <a href="#screens">08 화면 목록</a>
-      <a href="#payout">09 베팅 · 정산 규칙</a>
-      <a href="#chips">10 칩 구성</a>
-      <a href="#stack">11 기술 스택</a>
-      <a href="#roadmap">12 개발 로드맵</a>
-      <a href="#questions">13 결정 현황</a>
+      <a href="#card-rules">03 카드 규칙</a>
+      <a href="#roles">04 역할별 기능</a>
+      <a href="#squeeze">05 카드 쪼기 설계</a>
+      <a href="#calling">06 딜러 콜링</a>
+      <a href="#architecture">07 시스템 아키텍처</a>
+      <a href="#data-model">08 데이터 모델</a>
+      <a href="#screens">09 화면 목록</a>
+      <a href="#payout">10 베팅 · 정산 규칙</a>
+      <a href="#chips">11 칩 구성</a>
+      <a href="#stack">12 기술 스택</a>
+      <a href="#roadmap">13 개발 로드맵</a>
+      <a href="#questions">14 결정 현황</a>
     </nav>
 
     <main>
@@ -528,8 +529,53 @@ flowchart TD
         <p class="diagram-caption">베팅 → 콜 → 딜링 → 쪼기/공개 → 정산 → 매도 갱신이 한 라운드의 기본 사이클.</p>
       </section>
 
-      <section id="roles">
+      <section id="card-rules">
         <span class="sec-num">03</span>
+        <h2>카드 규칙 (3번째 카드)</h2>
+        <p class="sec-desc">국제 표준 퐁토방코(Punto Banco) 규칙을 따른다. 3번째 카드를 받을지는 정해진 표에 따라 자동으로 결정되며, 플레이어의 선택은 없다.</p>
+
+        <p class="table-caption">0. 내추럴</p>
+        <p>플레이어 또는 뱅커가 첫 두 장 합으로 8 또는 9(내추럴)를 만들면 그 즉시 승부가 확정되고, 반대편 총합과 무관하게 양측 모두 3번째 카드를 받지 않는다.</p>
+
+        <p class="table-caption">1. 플레이어 규칙</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>플레이어 첫 2장 합</th><th>동작</th></tr></thead>
+            <tbody>
+              <tr><td>0 ~ 5</td><td>3번째 카드를 받는다</td></tr>
+              <tr><td>6 ~ 7</td><td>스탠드(받지 않는다)</td></tr>
+              <tr><td>8 ~ 9</td><td>내추럴 — 게임 즉시 종료</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="table-caption" style="margin-top:28px;">2. 뱅커 규칙</p>
+        <p>플레이어가 내추럴이 아닐 때만 적용된다.</p>
+        <ul class="plain">
+          <li><b>플레이어가 스탠드(6·7)했다면</b> — 뱅커는 자신의 합이 0~5면 받고, 6~7이면 스탠드</li>
+          <li><b>플레이어가 3번째 카드를 받았다면</b> — 아래 표대로 뱅커 합계와 플레이어의 3번째 카드 값을 함께 본다</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>뱅커 첫 2장 합</th><th>3번째 카드를 받는 조건</th></tr></thead>
+            <tbody>
+              <tr><td>0 · 1 · 2</td><td>항상 받는다</td></tr>
+              <tr><td>3</td><td>플레이어의 3번째 카드가 8이 아니면 받는다</td></tr>
+              <tr><td>4</td><td>플레이어의 3번째 카드가 2~7이면 받는다</td></tr>
+              <tr><td>5</td><td>플레이어의 3번째 카드가 4~7이면 받는다</td></tr>
+              <tr><td>6</td><td>플레이어의 3번째 카드가 6~7이면 받는다</td></tr>
+              <tr><td>7</td><td>항상 스탠드</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">카드 값 환산 — A는 1, 2~9는 숫자 그대로, 10·J·Q·K는 0으로 계산한다(예: K+7 = 7).</p>
+
+        <p class="table-caption" style="margin-top:28px;">3. 테이블 위 배치</p>
+        <p>실제 바카라 테이블 관례를 따라, 처음 받는 2장은 <b>세로(정방향)</b>로 나란히 놓고, 3번째 카드는 그 아래에 <b>가로(90˚ 회전)</b>로 배치한다. <a href="#squeeze">카드 쪼기</a> 화면과 UI 목업의 카드 배치에 동일하게 적용.</p>
+      </section>
+
+      <section id="roles">
+        <span class="sec-num">04</span>
         <h2>역할별 기능</h2>
         <p class="sec-desc">관리자, 플레이어, 게임 엔진, 그리고 쪼기 인터랙션 네 축으로 기능을 정리했다.</p>
         <div class="card-grid">
@@ -559,7 +605,7 @@ flowchart TD
           <div class="card">
             <h3>게임 엔진 <span class="tag">Engine</span></h3>
             <ul>
-              <li>표준 바카라 규칙(8덱 슈, 3번째 카드 규칙)</li>
+              <li>표준 바카라 규칙(8덱 슈, <a href="#card-rules">3번째 카드 규칙</a>)</li>
               <li>서버 단일 소스로 셔플 · 딜링 관리(치팅 방지)</li>
               <li>라운드별 결과 기록 → 매도 데이터 생성</li>
               <li>메인 + 6종 사이드 베팅 배당 계산 및 정산</li>
@@ -570,8 +616,8 @@ flowchart TD
           <div class="card">
             <h3>카드 쪼기 <span class="tag">Squeeze</span></h3>
             <ul>
-              <li>카드 모서리를 누르고 안쪽으로 드래그하는 단일 제스처</li>
-              <li>드래그 거리에 비례해 카드가 실제로 휘어 보이는 연출</li>
+              <li>가로로 슬쩍 본 뒤 세로로 마저 쪼는 2단계 순서 드래그</li>
+              <li>덮여 있는 뒷면이 걷히며 숫자·무늬가 있는 앞면이 점점 드러나는 연출</li>
               <li>최고 배팅자 화면에서만 조작 가능</li>
               <li>다른 참가자는 진행 상황을 실시간 관전</li>
               <li>완전 오픈 전까지 카드 값은 서버만 보유</li>
@@ -581,33 +627,42 @@ flowchart TD
       </section>
 
       <section id="squeeze">
-        <span class="sec-num">04</span>
+        <span class="sec-num">05</span>
         <h2>카드 쪼기(스퀴즈) 인터랙션 설계</h2>
-        <p class="sec-desc">실제 카지노에서 카드 모서리를 손끝으로 눌러 살짝 구부리며 확인하는 동작을 그대로 재현한다. 두 개의 분리된 조작이 아니라, <b>하나의 연속된 드래그</b> 안에서 진행률에 따라 카드가 점점 더 열리는 방식이다. 이 판에서 가장 많이 베팅한 플레이어에게만 조작 권한이 주어진다.</p>
+        <p class="sec-desc">실제 카지노에서 카드를 확인하는 순서 그대로 재현한다 — 먼저 <b>가로 방향</b>으로 옆면을 슬쩍 봐서 인덱스가 몇 개 보이는지 확인하고, 그다음 <b>세로 방향</b>으로 이어서 마저 쪼아 전체를 확인한다. 두 단계는 반드시 이 순서로만 진행되며, 열리는 대상은 카드 뒷면이 아니라 <b>숫자·무늬가 있는 앞면</b>이다 — 뒷면은 그대로 덮여 있고, 그 아래 있던 앞면이 점점 넓게 드러나는 구조다. 이 판에서 가장 많이 베팅한 플레이어에게만 조작 권한이 주어진다.</p>
 
         <div class="diagram-wrap">
           <div class="diagram-split">
-            <svg viewBox="0 0 240 160" width="100%" height="160" role="img" aria-label="카드 모서리를 손가락으로 눌러 안쪽으로 드래그하는 동작 다이어그램">
-              <rect x="78" y="18" width="104" height="118" rx="8" fill="none" style="stroke:var(--line)" stroke-width="2"/>
-              <path d="M78,18 L112,18 L78,52 Z" style="fill:var(--felt-soft); stroke:var(--felt)" stroke-width="1.5"/>
-              <text x="86" y="38" font-size="11" font-family="var(--font-mono)" style="fill:var(--felt)">6</text>
-              <path d="M36,124 C 52,96 64,72 80,40" fill="none" style="stroke:var(--gold)" stroke-width="2.5" stroke-dasharray="5 5" marker-end="url(#arrowhead)"/>
-              <circle cx="36" cy="124" r="6" style="fill:var(--gold)"/>
-              <text x="10" y="146" font-size="11" font-family="var(--font-body)" style="fill:var(--muted)">엄지로 코너를 눌러 드래그</text>
+            <svg viewBox="0 0 240 170" width="100%" height="170" role="img" aria-label="카드를 가로로 슬쩍 본 뒤 세로로 마저 쪼는 2단계 동작 다이어그램">
+              <rect x="70" y="14" width="100" height="140" rx="8" fill="none" style="stroke:var(--gold)" stroke-width="2"/>
+              <rect x="70" y="14" width="100" height="140" rx="8" style="fill:#241a3d"/>
+              <rect x="70" y="14" width="32" height="140" rx="8" style="fill:#FBF9F4"/>
+              <text x="78" y="34" font-size="12" font-family="var(--font-mono)" font-weight="700" style="fill:var(--banker)">9</text>
+              <text x="79" y="47" font-size="10" font-family="var(--font-mono)" style="fill:var(--banker)">♦</text>
+              <line x1="102" y1="14" x2="102" y2="154" style="stroke:var(--gold)" stroke-width="1" stroke-dasharray="3 3"/>
+              <path d="M40,58 L66,58" fill="none" style="stroke:var(--gold)" stroke-width="2.5" marker-end="url(#arrowhead)"/>
+              <text x="8" y="50" font-size="11" font-family="var(--font-body)" font-weight="700" style="fill:var(--felt)">① 가로</text>
+              <text x="8" y="72" font-size="10" font-family="var(--font-body)" style="fill:var(--muted)">옆으로 슬쩍</text>
+              <path d="M120,166 L120,138" fill="none" style="stroke:var(--gold)" stroke-width="2.5" marker-end="url(#arrowhead2)"/>
+              <text x="128" y="150" font-size="11" font-family="var(--font-body)" font-weight="700" style="fill:var(--felt)">② 세로</text>
+              <text x="128" y="164" font-size="10" font-family="var(--font-body)" style="fill:var(--muted)">돌려서 마저</text>
               <defs>
                 <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
+                  <path d="M0,0 L9,4.5 L0,9 Z" style="fill:var(--gold)"/>
+                </marker>
+                <marker id="arrowhead2" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
                   <path d="M0,0 L9,4.5 L0,9 Z" style="fill:var(--gold)"/>
                 </marker>
               </defs>
             </svg>
             <ul class="plain" style="margin:0;">
-              <li><b>드래그 0~30%</b> — 코너만 살짝 들리며 사이드 인덱스(숫자/문양)만 슬쩍 노출. 실제로 카드 옆면을 훔쳐보는 느낌.</li>
-              <li><b>드래그 30~100%</b> — 같은 손가락 이동을 이어가면 카드가 점점 평평해지며 무늬 전체가 서서히 드러남.</li>
-              <li><b>손을 떼면</b> — 그 진행률에서 멈춤(중간에 멈춰서 다시 살펴볼 수 있음). 끝까지 드래그해야 결과가 확정 공개됨.</li>
+              <li><b>① 가로 (0~35%)</b> — 카드 왼쪽 긴 변을 기준으로 옆으로 슬쩍 밀면 흰색 앞면이 얇은 세로 띠로 드러난다. 인덱스(숫자·무늬)가 몇 개 보이는지만 확인하는 단계.</li>
+              <li><b>② 세로 (35~100%)</b> — ①이 끝나야만 활성화. 위아래로 이어서 드래그하면 앞면이 마저 넓게 드러나 전체를 확인.</li>
+              <li><b>뒷면은 그대로</b> — 어두운 골드 패턴의 뒷면은 항상 카드 위에 남아 있고, 그 아래 있던 흰색 앞면이 점점 넓게 노출되는 방식이다.</li>
             </ul>
           </div>
         </div>
-        <p class="diagram-caption">진행률(0~100%)은 드래그 거리를 카드 대각선 길이에 투영해 계산.</p>
+        <p class="diagram-caption">두 단계 모두 진행률은 0~100% 스칼라 값으로 서버와 다른 참가자에게 전송된다.</p>
 
         <div class="phase-strip">
           <div class="phase-step">
@@ -617,13 +672,13 @@ flowchart TD
           </div>
           <div class="phase-step">
             <span class="n">STEP 2</span>
-            <h4>코너를 눌러 드래그 시작</h4>
-            <p>Pointer Events로 시작 좌표 기록, 진행률 0~30%에서 카드 코너만 살짝 리프트</p>
+            <h4>① 가로로 슬쩍</h4>
+            <p>좌우 드래그만 인식. 진행률 0~35%까지, 앞면이 가느다란 세로 띠로 드러남</p>
           </div>
           <div class="phase-step">
             <span class="n">STEP 3</span>
-            <h4>이어서 드래그해 서서히 오픈</h4>
-            <p>같은 드래그로 진행률 30~100%까지 이어지면 카드가 평평해지며 전체가 드러남</p>
+            <h4>② 세로로 마저 쪼기</h4>
+            <p>가로 단계 완료 후 상하 드래그로 전환, 진행률 35~100%까지 이어서 오픈</p>
           </div>
           <div class="phase-step">
             <span class="n">STEP 4</span>
@@ -633,16 +688,17 @@ flowchart TD
         </div>
 
         <ul class="plain">
-          <li><b>구현 방식</b> — <code>pointerdown/pointermove/pointerup</code>으로 드래그 벡터 추적 → 진행률 계산 → <code>perspective</code> + <code>rotateX/rotateY</code> 3D transform과 <code>clip-path</code> 마스크를 조합해 "코너만 열리는" 형태를 표현</li>
+          <li><b>구현 방식</b> — ①단계는 <code>pointermove</code>의 가로(dx) 성분만, ②단계는 세로(dy) 성분만 반영. 앞면(front) 레이어는 항상 하단에 고정돼 있고, 뒷면(back) 레이어에만 <code>clip-path: inset()</code>을 적용해 진행률만큼 걷어낸다 — 뒷면이 사라지는 만큼 앞면이 드러나는 구조.</li>
           <li><b>동기화</b> — 실제 카드 값이 아니라 "노출 진행률(0~100%)"만 WebSocket으로 브로드캐스트, 100%에 도달하는 순간에만 서버가 카드 값을 전체 공개</li>
-          <li><b>햅틱</b> — 지원 기기에서 진행률 30%/70% 지점에 짧은 진동 피드백(선택)으로 손맛 강화</li>
+          <li><b>순서 강제</b> — ①이 35%에 도달하기 전에는 ②(세로) 드래그가 아예 동작하지 않도록 잠금 처리</li>
+          <li><b>레이아웃</b> — <a href="#card-rules">03장</a>에서 정한 대로 처음 2장은 세로로 나란히, 3번째 카드는 그 아래 가로로 배치. 쪼기는 각 카드에 동일한 ①→② 순서로 적용</li>
           <li><b>동률 처리</b> — 최고 베팅액이 같은 참가자가 여럿이면, 그 라운드에서 베팅을 먼저 확정한 사람이 쪼기 권한을 가짐</li>
           <li><b>미조작 시</b> — 제한시간 내 드래그를 시작하지 않으면 자동 공개로 전환</li>
         </ul>
       </section>
 
       <section id="calling">
-        <span class="sec-num">05</span>
+        <span class="sec-num">06</span>
         <h2>딜러 콜링</h2>
         <p class="sec-desc">실제 바카라 딜러가 카드를 배분하며 외치는 콜을 음성 + 자막으로 재현한다. 서버가 진행 이벤트를 브로드캐스트하면 모든 참가자의 화면에서 동일한 시점에 동일한 콜이 재생되어 함께 몰입할 수 있다.</p>
         <div class="table-wrap">
@@ -667,7 +723,7 @@ flowchart TD
       </section>
 
       <section id="architecture">
-        <span class="sec-num">06</span>
+        <span class="sec-num">07</span>
         <h2>시스템 아키텍처</h2>
         <p class="sec-desc">모든 클라이언트가 하나의 실시간 서버를 바라보는 구조. 게임 상태는 서버가 단일 진실 공급원(source of truth)으로 관리한다.</p>
         <div class="diagram-wrap">
@@ -700,7 +756,7 @@ flowchart LR
       </section>
 
       <section id="data-model">
-        <span class="sec-num">07</span>
+        <span class="sec-num">08</span>
         <h2>데이터 모델 (초안)</h2>
         <div class="table-wrap">
           <table>
@@ -719,7 +775,7 @@ flowchart LR
       </section>
 
       <section id="screens">
-        <span class="sec-num">08</span>
+        <span class="sec-num">09</span>
         <h2>화면 목록</h2>
         <div class="table-wrap">
           <table>
@@ -737,7 +793,7 @@ flowchart LR
       </section>
 
       <section id="payout">
-        <span class="sec-num">09</span>
+        <span class="sec-num">10</span>
         <h2>베팅 옵션 및 정산 규칙</h2>
         <p class="sec-desc">사이드 베팅 배당은 실제 카지노·업계 자료를 조사해 반영했다. 카지노마다 편차가 있어 대표값을 채택했고, 마지막 콤보 베팅은 표준화된 참고 자료가 없어 유사 사례를 근거로 한 추정값이다(<span class="est-flag">추정</span> 표시 참조).</p>
         <div class="q-item" style="margin-bottom:24px;"><b>확인 요청</b>아래 배당표는 조사 자료를 바탕으로 한 제안값입니다. 확정 전에 검토 후 알려주세요 — 특히 콤보 베팅(30:1)은 추정치입니다.</div>
@@ -777,9 +833,9 @@ flowchart LR
       </section>
 
       <section id="chips">
-        <span class="sec-num">10</span>
+        <span class="sec-num">11</span>
         <h2>칩 구성</h2>
-        <p class="sec-desc">실제 카지노 칩 체계를 참고해 최고액 칩을 1,000만원으로 설정. 초기 지급액과 베팅액을 적은 개수의 칩으로 표현할 수 있도록 8종 표준 세트를 제안한다.</p>
+        <p class="sec-desc">실제 카지노 칩 체계를 참고해 최고액 칩을 1,000만원으로 설정. "5단위" 칩은 5,000원 한 종류만 남겨 구성을 단순화한 6종 표준 세트를 제안한다.</p>
         <div class="chip-row">
           <div class="chip">
             <div class="disc" style="background:#C7CDC8; color:#16211C;">1K</div>
@@ -797,19 +853,9 @@ flowchart LR
             <div class="label">블루</div>
           </div>
           <div class="chip">
-            <div class="disc" style="background:#1F6B4A; color:#fff;">50K</div>
-            <div class="amt">5만원</div>
-            <div class="label">그린</div>
-          </div>
-          <div class="chip">
             <div class="disc" style="background:#20211F; color:#fff;">100K</div>
             <div class="amt">10만원</div>
             <div class="label">블랙</div>
-          </div>
-          <div class="chip">
-            <div class="disc" style="background:#6A3F92; color:#fff;">500K</div>
-            <div class="amt">50만원</div>
-            <div class="label">퍼플</div>
           </div>
           <div class="chip">
             <div class="disc" style="background:#C1651F; color:#fff;">1M</div>
@@ -831,7 +877,7 @@ flowchart LR
       </section>
 
       <section id="stack">
-        <span class="sec-num">11</span>
+        <span class="sec-num">12</span>
         <h2>기술 스택 제안</h2>
         <div class="table-wrap">
           <table>
@@ -854,7 +900,7 @@ flowchart LR
       </section>
 
       <section id="roadmap">
-        <span class="sec-num">12</span>
+        <span class="sec-num">13</span>
         <h2>개발 로드맵</h2>
         <p class="sec-desc">Phase 0에서 합의된 내용을 바탕으로 순차 진행. 각 Phase는 이전 Phase의 산출물에 의존한다.</p>
         <div class="table-wrap">
@@ -877,7 +923,7 @@ flowchart LR
       </section>
 
       <section id="questions">
-        <span class="sec-num">13</span>
+        <span class="sec-num">14</span>
         <h2>결정 현황</h2>
         <p class="sec-desc">지난 논의를 거쳐 아래 항목이 확정되었다. 사이드 베팅 배당표만 최종 확인을 기다리는 중.</p>
         <p class="table-caption">확정된 사항</p>
@@ -893,7 +939,7 @@ flowchart LR
         </div>
         <p class="table-caption" style="margin-top:28px;">확인 대기</p>
         <div class="q-list">
-          <div class="q-item"><b>사이드 베팅 배당</b>9장의 조사 기반 배당표(페어 11:1, 뱅커6 12·20:1, 플레이어7 7·15:1, 콤보 약 30:1)를 이대로 확정할지 검토 필요</div>
+          <div class="q-item"><b>사이드 베팅 배당</b>10장의 조사 기반 배당표(페어 11:1, 뱅커6 12·20:1, 플레이어7 7·15:1, 콤보 약 30:1)를 이대로 확정할지 검토 필요</div>
         </div>
       </section>
 
