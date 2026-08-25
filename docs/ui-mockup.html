@@ -394,7 +394,7 @@
 
   <section class="stage">
     <h2>카드 쪼기 데모</h2>
-    <p class="desc">오른쪽 아래 모서리 근처를 눌러 안쪽으로 드래그하면, 그 모서리와 손가락을 잇는 선의 수직이등분선을 축으로 카드 모서리가 실제로 반사·접힌다 — 접힌 조각(플랩)에만 앞면이 비쳐 보이고, 나머지 카드 본체는 전혀 움직이지 않고 뒷면 그대로다. 살짝 놓으면 원래대로 돌아가고, 충분히 접으면 카드 전체가 공개된다.</p>
+    <p class="desc">긴 변(좌·우)을 살짝 당기면 코너 숫자는 절대 안 보이고 그 열의 핍 개수만 살짝 엿보인다 — 4개면 9·10, 3개면 6·7·8, 2개면 4·5, 0개면 A·2·3, 테두리만 보이면 그림카드. 놓으면 항상 원위치. 짧은 변(위·아래)은 제한 없이 서서히 당겨 확정 확인 — 충분히 당기면 완전 공개된다.</p>
     <div class="squeeze-wrap">
       <div class="squeeze-stand" id="squeezeStand">
         <canvas id="squeezeCanvas"></canvas>
@@ -468,29 +468,46 @@
     c.fillStyle = '#FBF9F4'; c.fillRect(0, 0, w, h);
     c.strokeStyle = 'rgba(0,0,0,0.15)'; c.lineWidth = 3;
     c.strokeRect(1.5, 1.5, w - 3, h - 3);
-    c.fillStyle = '#B23B3B';
-    c.font = '700 ' + (w * 0.1) + 'px Georgia, serif';
+    var red = '#B23B3B';
+    c.fillStyle = red;
+    c.font = '700 ' + (w * 0.08) + 'px Georgia, serif';
     c.textBaseline = 'top';
-    c.fillText('9', w * 0.07, h * 0.03);
-    c.font = (w * 0.08) + 'px Georgia, serif';
-    c.fillText('♦', w * 0.075, h * 0.03 + w * 0.11);
+    c.fillText('9', w * 0.05, h * 0.022);
+    c.font = (w * 0.062) + 'px Georgia, serif';
+    c.fillText('♦', w * 0.055, h * 0.022 + w * 0.09);
     c.save();
-    c.translate(w * 0.93, h * 0.97); c.rotate(Math.PI);
-    c.font = '700 ' + (w * 0.1) + 'px Georgia, serif';
+    c.translate(w * 0.95, h * 0.978); c.rotate(Math.PI);
+    c.font = '700 ' + (w * 0.08) + 'px Georgia, serif';
     c.fillText('9', 0, 0);
-    c.font = (w * 0.08) + 'px Georgia, serif';
-    c.fillText('♦', -w * 0.005, w * 0.11);
+    c.font = (w * 0.062) + 'px Georgia, serif';
+    c.fillText('♦', -w * 0.004, w * 0.09);
     c.restore();
-    c.font = (w * 0.36) + 'px Georgia, serif';
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('♦', w / 2, h * 0.5);
-    c.textAlign = 'left';
+
+    function pip(fx, fy) {
+      var px = fx * w, py = fy * h, sz = w * 0.12;
+      c.save();
+      c.translate(px, py); c.rotate(Math.PI / 4);
+      c.fillStyle = red;
+      roundRect(c, -sz / 2, -sz / 2, sz, sz, sz * 0.16);
+      c.fill();
+      c.restore();
+    }
+    var xL = 0.30, xR = 0.70;
+    var y1 = 0.195, y2 = 0.365, y3 = 0.635, y4 = 0.805;
+    pip(xL, y1); pip(xR, y1);
+    pip(xL, y2); pip(xR, y2);
+    pip(0.5, 0.5);
+    pip(xL, y3); pip(xR, y3);
+    pip(xL, y4); pip(xR, y4);
   }
   drawBack(backTex.getContext('2d'), TW, TH);
   drawFront(frontTex.getContext('2d'), TW, TH);
 
-  var state = { dragging: false, revealed: false, F0: { x: 0, y: 0 }, F: { x: 0, y: 0 }, target: null, everTouched: false };
-  var CURL_R = 40;
+  var state = { dragging: false, revealed: false, edge: null, F0: { x: 0, y: 0 }, F: { x: 0, y: 0 }, target: null, everTouched: false };
+  var CURL_R = 34;
+  var LONG_EDGES = { left: true, right: true };
+  var LONG_DEPTH_FRAC = 0.40;
+  var CAP_MARGIN_FRAC = 0.15;
 
   function resize() {
     var rect = canvas.getBoundingClientRect();
@@ -498,8 +515,6 @@
     H = Math.max(1, Math.round(rect.height));
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    state.F0 = { x: W, y: H };
-    if (!state.dragging && !state.target && !state.revealed) state.F = { x: W, y: H };
   }
   window.addEventListener('resize', resize);
   resize();
@@ -508,17 +523,28 @@
     var rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
-  function withinStartZone(x, y) {
-    var r = Math.min(W, H) * 0.42;
-    var dx = W - x, dy = H - y;
-    return Math.sqrt(dx * dx + dy * dy) < r;
+  function edgeFor(x, y) {
+    var dl = x, dr = W - x, dt = y, db = H - y;
+    var m = Math.min(dl, dr, dt, db);
+    if (m === dl) return 'left';
+    if (m === dr) return 'right';
+    if (m === dt) return 'top';
+    return 'bottom';
   }
+  function anchorFor(edge, x, y) {
+    if (edge === 'left') return { x: 0, y: y };
+    if (edge === 'right') return { x: W, y: y };
+    if (edge === 'top') return { x: x, y: 0 };
+    return { x: x, y: H };
+  }
+  function edgeLabel(e) { return { left: '왼쪽(긴 변)', right: '오른쪽(긴 변)', top: '위(짧은 변)', bottom: '아래(짧은 변)' }[e] || e; }
   function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
   function onDown(e) {
     if (state.revealed) return;
     var p = pointerLocal(e);
-    if (!withinStartZone(p.x, p.y)) return;
+    state.edge = edgeFor(p.x, p.y);
+    state.F0 = anchorFor(state.edge, p.x, p.y);
     state.dragging = true; state.target = null; state.everTouched = true;
     state.F = { x: p.x, y: p.y };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -526,18 +552,34 @@
   function onMove(e) {
     if (!state.dragging) return;
     var p = pointerLocal(e);
+    var fx = p.x, fy = p.y;
+    if (LONG_EDGES[state.edge]) {
+      var dx0 = fx - state.F0.x, dy0 = fy - state.F0.y;
+      var dist0 = Math.hypot(dx0, dy0);
+      var maxDepth = W * LONG_DEPTH_FRAC;
+      if (dist0 > maxDepth) {
+        var s0 = maxDepth / dist0;
+        fx = state.F0.x + dx0 * s0;
+        fy = state.F0.y + dy0 * s0;
+      }
+    }
     state.F = {
-      x: Math.max(-W * 0.3, Math.min(W * 1.1, p.x)),
-      y: Math.max(-H * 0.3, Math.min(H * 1.1, p.y))
+      x: Math.max(-W * 0.3, Math.min(W * 1.1, fx)),
+      y: Math.max(-H * 0.3, Math.min(H * 1.1, fy))
     };
   }
   function onUp() {
     if (!state.dragging) return;
     state.dragging = false;
+    if (LONG_EDGES[state.edge]) {
+      state.target = { x: state.F0.x, y: state.F0.y, full: false };
+      vibrate(8);
+      return;
+    }
     var dx = state.F.x - state.F0.x, dy = state.F.y - state.F0.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
     var diag = Math.sqrt(W * W + H * H);
-    if (dist > diag * 0.6) {
+    if (dist > diag * 0.55) {
       state.target = { x: -W * 0.2, y: -H * 0.2, full: true };
       vibrate(28);
     } else {
@@ -550,8 +592,8 @@
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
   resetBtn.addEventListener('click', function () {
-    state.revealed = false; state.dragging = false; state.target = null;
-    state.F = { x: state.F0.x, y: state.F0.y };
+    state.revealed = false; state.dragging = false; state.target = null; state.edge = null;
+    state.F = { x: 0, y: 0 }; state.F0 = { x: 0, y: 0 };
   });
 
   function clipPoly(poly, mx, my, nx, ny, keepPos) {
@@ -629,9 +671,12 @@
         ctx.save();
         ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 500);
         ctx.fillStyle = '#D8B15C';
-        ctx.font = '20px sans-serif';
+        ctx.font = '16px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('◤', W - 20, H - 20);
+        ctx.fillText('◀', 12, H / 2);
+        ctx.fillText('▶', W - 12, H / 2);
+        ctx.fillText('▲', W / 2, 14);
+        ctx.fillText('▼', W / 2, H - 14);
         ctx.restore();
       }
       readout.textContent = '대기 중';
@@ -645,17 +690,32 @@
 
     var rectPoly = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
     var bodyPoly = clipPoly(rectPoly, mx, my, nx, ny, true);
-    var flapPoly = clipPoly(rectPoly, mx, my, nx, ny, false);
+    var rawFlapPoly = clipPoly(rectPoly, mx, my, nx, ny, false);
+    var flapPoly = rawFlapPoly;
+    var flatExtras = [];
 
-    if (bodyPoly.length >= 3) {
+    if (LONG_EDGES[state.edge] && rawFlapPoly.length >= 3) {
+      var capMargin = H * CAP_MARGIN_FRAC;
+      var topExcluded = clipPoly(rawFlapPoly, 0, capMargin, 0, -1, true);
+      var botExcluded = clipPoly(rawFlapPoly, 0, H - capMargin, 0, 1, true);
+      if (topExcluded.length >= 3) flatExtras.push(topExcluded);
+      if (botExcluded.length >= 3) flatExtras.push(botExcluded);
+      flapPoly = clipPoly(rawFlapPoly, 0, capMargin, 0, 1, true);
+      flapPoly = clipPoly(flapPoly, 0, H - capMargin, 0, -1, true);
+    }
+
+    function drawFlat(poly) {
+      if (poly.length < 3) return;
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(bodyPoly[0].x, bodyPoly[0].y);
-      for (var bi = 1; bi < bodyPoly.length; bi++) ctx.lineTo(bodyPoly[bi].x, bodyPoly[bi].y);
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (var pi = 1; pi < poly.length; pi++) ctx.lineTo(poly[pi].x, poly[pi].y);
       ctx.closePath(); ctx.clip();
       ctx.drawImage(backTex, 0, 0, TW, TH, 0, 0, W, H);
       ctx.restore();
     }
+    drawFlat(bodyPoly);
+    for (var fx2 = 0; fx2 < flatExtras.length; fx2++) drawFlat(flatExtras[fx2]);
 
     if (flapPoly.length >= 3) {
       var dMax = 0, tMin = Infinity, tMax = -Infinity;
@@ -749,8 +809,9 @@
       }
     }
 
-    var pct = Math.round(Math.min(1, dragLen / (Math.hypot(W, H) * 0.6)) * 100);
-    readout.textContent = '오른쪽 아래 · ' + pct + '%';
+    var pctBase = LONG_EDGES[state.edge] ? (W * LONG_DEPTH_FRAC) : (Math.hypot(W, H) * 0.55);
+    var pct = Math.round(Math.min(1, dragLen / pctBase) * 100);
+    readout.textContent = edgeLabel(state.edge) + ' · ' + pct + '%';
 
     requestAnimationFrame(render);
   }
