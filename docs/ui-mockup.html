@@ -243,26 +243,34 @@
   .squeeze-wrap { display: flex; gap: 36px; flex-wrap: wrap; align-items: center; }
   .squeeze-stand {
     width: 168px; height: 236px; position: relative;
+    perspective: 900px;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    box-shadow: 0 18px 34px rgba(0,0,0,0.5);
-    border-radius: 12px;
+    cursor: grab;
   }
+  .squeeze-stand.dragging { cursor: grabbing; }
   .squeeze-stand .face {
     position: absolute; inset: 0; border-radius: 12px; overflow: hidden;
   }
-  .squeeze-stand .face.front { background: #FBF9F4; border: 1px solid rgba(0,0,0,0.12); z-index: 1; }
+  .squeeze-stand .face.front {
+    background: #FBF9F4; border: 1px solid rgba(0,0,0,0.12); z-index: 1;
+    box-shadow: 0 18px 34px rgba(0,0,0,0.5);
+  }
   .squeeze-stand .face.back {
     z-index: 2;
     background:
+      linear-gradient(90deg, transparent calc(var(--p, 0) * 100%), rgba(0,0,0,0.5) calc(var(--p, 0) * 100% + 3%), transparent calc(var(--p, 0) * 100% + 24%)),
       radial-gradient(circle at 50% 42%, rgba(216,177,92,0.30), transparent 62%),
       linear-gradient(155deg, #241a3d 0%, #0c0a15 72%);
     border: 2px solid var(--gold);
     clip-path: inset(0% 0% 0% calc(var(--p, 0) * 100%) round 12px);
-    transition: clip-path 0.3s ease;
+    transform-origin: 0% 100%;
+    transform: rotateY(calc(var(--pa, 0) * -26deg)) rotateX(calc(var(--pb, 0) * -18deg));
+    filter: drop-shadow(calc(var(--p, 0) * 4px) calc(var(--p, 0) * 10px) 12px rgba(0,0,0,0.55));
+    transition: clip-path 0.25s ease, transform 0.25s ease, filter 0.25s ease;
   }
-  .squeeze-stand.dragging-a .face.back, .squeeze-stand.dragging-b .face.back { transition: none; }
+  .squeeze-stand.dragging .face.back { transition: none; }
   .squeeze-stand .face.back::before {
     content: ""; position: absolute; inset: 9px; border-radius: 7px;
     border: 1px solid rgba(216,177,92,0.5);
@@ -276,27 +284,11 @@
     background: linear-gradient(135deg, var(--gold-bright), var(--gold) 55%, var(--gold-deep));
     border-radius: 15%;
   }
-  .squeeze-stand .handle {
-    position: absolute; z-index: 3;
-    width: 32px; height: 32px; border-radius: 50%;
-    background: rgba(216,177,92,0.16); border: 1.5px solid var(--gold);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; cursor: grab;
+  .squeeze-stand .grab-hint {
+    position: absolute; left: 8px; bottom: 8px; z-index: 3;
+    font-size: 15px; opacity: calc(1 - var(--p, 0) * 1.4);
+    pointer-events: none; transition: opacity 0.25s ease;
   }
-  .squeeze-stand .handle-a {
-    left: -10px; top: 50%;
-    transform: translateY(-50%) translateX(calc(var(--pa, 0) * 44px));
-  }
-  .squeeze-stand:not(.dragging-a) .handle-a { transition: transform 0.3s ease; }
-  .squeeze-stand.dragging-a .handle-a { cursor: grabbing; }
-  .squeeze-stand .handle-b {
-    left: 50%; bottom: -10px;
-    transform: translateX(-50%) translateY(calc(var(--pb, 0) * 44px));
-    opacity: 0.3; pointer-events: none;
-  }
-  .squeeze-stand.phaseA-done .handle-b { opacity: 1; pointer-events: auto; }
-  .squeeze-stand:not(.dragging-b) .handle-b { transition: transform 0.3s ease, opacity 0.3s ease; }
-  .squeeze-stand.dragging-b .handle-b { cursor: grabbing; }
 
   .squeeze-info { display: flex; flex-direction: column; gap: 14px; max-width: 34ch; }
   .squeeze-info .progress-readout {
@@ -320,7 +312,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .squeeze-stand .face.back, .squeeze-stand .handle { transition: none !important; }
+    .squeeze-stand .face.back { transition: none !important; }
   }
 </style>
 
@@ -462,8 +454,7 @@
           <span class="corner br red"><span class="rank">Q</span><span class="suit">♥</span></span>
         </div>
         <div class="face back"></div>
-        <div class="handle handle-a" id="squeezeHandleA" title="① 가로로 밀기">↔</div>
-        <div class="handle handle-b" id="squeezeHandleB" title="② 세로로 당기기">↕</div>
+        <span class="grab-hint">✋</span>
       </div>
       <div class="squeeze-info">
         <div class="progress-readout" id="squeezeReadout">① 가로 · 진행률 0%</div>
@@ -472,7 +463,7 @@
           <span id="stepBChip">② 세로</span>
         </div>
         <div class="bar" style="--p:0;" id="squeezeBar"><span></span></div>
-        <p>①에서는 가로 드래그만 인식해 35%까지 옆면 인덱스를 슬쩍 보여준다. 35%에 도달해야 ② 손잡이가 켜지고, 세로 드래그로 나머지를 마저 연다. 이 진행률은 실제 서비스에서 다른 참가자에게도 실시간 전송된다.</p>
+        <p>카드 아무 곳이나 눌러서 드래그. 손을 떼지 않고 이어서 진행해도 되고, 손을 뗀 자리에서 이어서 다시 잡아도 된다 — 먼저 <b>가로</b>로 35%까지 슬쩍 민 다음, 그대로 이어서 <b>세로 아래쪽</b>으로 당기면 마저 열린다(세로로 세운 폰에서 위→아래 드래그). 이 진행률은 실제 서비스에서 다른 참가자에게도 실시간 전송된다.</p>
         <button class="reset-btn" id="squeezeReset" type="button">다시 덮기</button>
       </div>
     </div>
@@ -484,8 +475,6 @@
 (function () {
   var CAP = 0.35;
   var card = document.getElementById('squeezeCard');
-  var handleA = document.getElementById('squeezeHandleA');
-  var handleB = document.getElementById('squeezeHandleB');
   var readout = document.getElementById('squeezeReadout');
   var bar = document.getElementById('squeezeBar');
   var stepAChip = document.getElementById('stepAChip');
@@ -493,75 +482,63 @@
   var resetBtn = document.getElementById('squeezeReset');
   var maxDragA = 130;
   var maxDragB = 150;
-  var p = 0;
-  var dragging = null;
-  var startCoord = 0, startP = 0;
+
+  var p = 0;               // 0..1 overall reveal
+  var phase = 'a';         // 'a' while p < CAP, 'b' once it has reached CAP
+  var dragging = false;
+  var axisX = 0, axisY = 0; // pointer coords where the CURRENT phase segment began
+  var baseP = 0;             // p at the start of the current phase segment
 
   function apply() {
     card.style.setProperty('--p', p);
-    var pa = Math.min(p, CAP) / CAP;
-    var pb = p <= CAP ? 0 : (p - CAP) / (1 - CAP);
-    card.style.setProperty('--pa', pa);
-    card.style.setProperty('--pb', pb);
+    card.style.setProperty('--pa', Math.min(p, CAP) / CAP);
+    card.style.setProperty('--pb', p <= CAP ? 0 : (p - CAP) / (1 - CAP));
     bar.style.setProperty('--p', p);
-    var done = p >= CAP - 0.001;
-    card.classList.toggle('phaseA-done', done);
-    stepAChip.classList.toggle('active', !done);
-    stepBChip.classList.toggle('active', done);
-    readout.textContent = (done ? '② 세로' : '① 가로') + ' · 진행률 ' + Math.round(p * 100) + '%';
+    stepAChip.classList.toggle('active', phase === 'a');
+    stepBChip.classList.toggle('active', phase === 'b');
+    readout.textContent = (phase === 'a' ? '① 가로' : '② 세로') + ' · 진행률 ' + Math.round(p * 100) + '%';
   }
   apply();
 
-  function downA(e) {
-    if (p > CAP + 0.001) return;
-    dragging = 'a';
-    card.classList.add('dragging-a');
-    startCoord = e.clientX; startP = p;
-    handleA.setPointerCapture(e.pointerId);
+  function down(e) {
+    dragging = true;
+    card.classList.add('dragging');
+    phase = p < CAP - 0.0005 ? 'a' : 'b';
+    axisX = e.clientX; axisY = e.clientY; baseP = p;
+    card.setPointerCapture(e.pointerId);
   }
-  function moveA(e) {
-    if (dragging !== 'a') return;
-    var dx = e.clientX - startCoord;
-    p = Math.max(0, Math.min(CAP, startP + dx / maxDragA));
-    apply();
-  }
-  function upA() {
-    if (dragging !== 'a') return;
-    dragging = null;
-    card.classList.remove('dragging-a');
-    if (p > CAP - 0.03) p = CAP;
+
+  function move(e) {
+    if (!dragging) return;
+    if (phase === 'a') {
+      var dx = e.clientX - axisX;
+      p = Math.max(0, Math.min(CAP, baseP + dx / maxDragA));
+      if (p >= CAP - 0.0005) {
+        // seamless hand-off: keep dragging, switch axis to vertical without releasing
+        phase = 'b';
+        baseP = CAP;
+        axisY = e.clientY;
+      }
+    } else {
+      var dy = e.clientY - axisY;
+      p = Math.max(CAP, Math.min(1, baseP + dy / maxDragB));
+    }
     apply();
   }
 
-  function downB(e) {
-    if (p < CAP - 0.001) return;
-    dragging = 'b';
-    card.classList.add('dragging-b');
-    startCoord = e.clientY; startP = p;
-    handleB.setPointerCapture(e.pointerId);
-  }
-  function moveB(e) {
-    if (dragging !== 'b') return;
-    var dy = e.clientY - startCoord;
-    p = Math.max(CAP, Math.min(1, startP + dy / maxDragB));
-    apply();
-  }
-  function upB() {
-    if (dragging !== 'b') return;
-    dragging = null;
-    card.classList.remove('dragging-b');
-    if (p > 0.94) p = 1;
+  function up() {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+    if (p < 0.02) p = 0;
+    else if (p > 0.94) p = 1;
     apply();
   }
 
-  handleA.addEventListener('pointerdown', downA);
-  handleA.addEventListener('pointermove', moveA);
-  handleA.addEventListener('pointerup', upA);
-  handleA.addEventListener('pointercancel', upA);
-  handleB.addEventListener('pointerdown', downB);
-  handleB.addEventListener('pointermove', moveB);
-  handleB.addEventListener('pointerup', upB);
-  handleB.addEventListener('pointercancel', upB);
-  resetBtn.addEventListener('click', function () { p = 0; apply(); });
+  card.addEventListener('pointerdown', down);
+  card.addEventListener('pointermove', move);
+  card.addEventListener('pointerup', up);
+  card.addEventListener('pointercancel', up);
+  resetBtn.addEventListener('click', function () { p = 0; phase = 'a'; apply(); });
 })();
 </script>
