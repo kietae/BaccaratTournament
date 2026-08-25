@@ -422,12 +422,12 @@
 <div class="page">
 
   <header class="hero">
-    <span class="eyebrow">개발 계획서 · v0.7 초안</span>
+    <span class="eyebrow">개발 계획서 · v0.8 초안</span>
     <h1 class="title">바카라 토너먼트 앱</h1>
     <p class="subtitle">사내 직원 이벤트용 모바일 바카라 토너먼트. QR로 접속해 닉네임만으로 참가하고, 정해진 판수 동안 실시간으로 베팅하며, 최고 배팅자가 양쪽 긴 변을 손가락으로 모아 카드를 직접 쪼는다. 최대 500명 동시 접속을 목표로 하며, 매도(빅로드)와 딜러 콜이 전 참가자에게 동기화 재생된다.</p>
     <div class="meta-row">
       <span>작성일 <b>2026-08-25</b></span>
-      <span>상태 <b>쪼기 방식을 Canvas 2D 물결 방식(4변 지원)으로 재설계 · 3번째 카드 규칙 문서화 · 칩 6종 확정 · 사이드벳 배당 확인 대기</b></span>
+      <span>상태 <b>쪼기 방식을 실제 반사·접힘(도그이어 폴드) 모델로 재설계, 오른쪽 아래 모서리부터 · 3번째 카드 규칙 문서화 · 칩 6종 확정 · 사이드벳 배당 확인 대기</b></span>
       <span>대상 독자 <b>기획 · 개발팀</b></span>
     </div>
     <div class="road-motif">
@@ -616,8 +616,8 @@ flowchart TD
           <div class="card">
             <h3>카드 쪼기 <span class="tag">Squeeze</span></h3>
             <ul>
-              <li>화면 어느 변이든 눌러 안쪽으로 드래그하면 그 지점부터 물결이 번지는 제스처</li>
-              <li>물결이 지나간 자리는 뒷면→앞면으로 자연스럽게 뒤집히며 누적되는 연출</li>
+              <li>오른쪽 아래 모서리를 잡고 당기면 손가락 위치로 실제로 접혀 이동하는 제스처</li>
+              <li>접힌 조각(플랩)에만 앞면이 반사되어 보이고 나머지 본체는 뒷면 그대로인 연출</li>
               <li>최고 배팅자 화면에서만 조작 가능</li>
               <li>다른 참가자는 진행 상황을 실시간 관전</li>
               <li>완전 오픈 전까지 카드 값은 서버만 보유</li>
@@ -629,34 +629,30 @@ flowchart TD
       <section id="squeeze">
         <span class="sec-num">05</span>
         <h2>카드 쪼기(스퀴즈) 인터랙션 설계</h2>
-        <p class="sec-desc">화면 자체를 카드 한 장으로 본다(테이블 위에 놓인 카드가 아니라, 화면 가장자리까지 카드 뒷면이 꽉 차 있는 상태). 사용자가 <b>어느 변에서든</b> 안쪽으로 드래그하면, 그 지점에서부터 부드러운 "물결"이 드래그 거리만큼 카드 안쪽으로 번져나가며 지나간 자리를 뒷면→앞면으로 뒤집는다. 물결이 아직 닿지 않은 영역은 뒷면 그대로, 이미 지나간 영역은 앞면으로 남는다. Canvas 2D로 카드를 잘게 나눠(스트립) 각 스트립을 진행률에 따라 원근 스케일링해 그리며, CSS 2D transform이나 단순 플립 애니메이션이 아니라 실제 드래그 거리에 실시간으로 연동되는 변형이다. 이 판에서 가장 많이 베팅한 플레이어에게만 조작 권한이 주어진다.</p>
+        <p class="sec-desc">앞선 "물결이 지나가며 텍스처를 바꾸는" 방식(v0.7)은 실제로는 wipe/reveal 효과였지 카드가 접히는 효과가 아니었다 — 앞면이 뒷면 아래 깔려 있다가 드러나는 게 아니라, 앞면과 뒷면은 <b>같은 종이의 양면</b>이라는 점을 놓친 설계였다. 다시 만들었다: 화면 자체를 카드 한 장으로 보고, <b>오른쪽 아래 모서리</b>를 손가락으로 잡아 안쪽으로 당기면 그 모서리가 실제로 손가락 위치까지 이동하며 <b>반사(reflect)</b>된다 — 원래 모서리와 현재 손가락 위치를 잇는 선분의 수직이등분선이 접힘 경계선이 되고, 그 경계선 바깥쪽(모서리에 가까운 삼각형 조각, "플랩")만 경계선을 축으로 뒤집혀 카드 앞면이 드러난다. 움직이지 않은 카드 본체는 계속 뒷면 그대로다. 우선 오른쪽 아래 모서리 하나만 정확히 구현했다. 이 판에서 가장 많이 베팅한 플레이어에게만 조작 권한이 주어진다.</p>
 
         <div class="diagram-wrap">
           <div class="diagram-split">
-            <svg viewBox="0 0 240 170" width="100%" height="170" role="img" aria-label="네 변 중 하나에서 안쪽으로 물결이 번지며 뒷면이 앞면으로 뒤집히는 다이어그램">
-              <rect x="55" y="18" width="130" height="134" rx="10" style="fill:#241a3d; stroke:var(--gold)" stroke-width="2"/>
-              <rect x="55" y="18" width="52" height="134" rx="10" style="fill:#FBF9F4"/>
-              <text x="63" y="40" font-size="13" font-family="var(--font-mono)" font-weight="700" style="fill:var(--banker)">9</text>
-              <text x="64" y="54" font-size="10" font-family="var(--font-mono)" style="fill:var(--banker)">♦</text>
-              <rect x="107" y="18" width="26" height="134" style="fill:#3a2c5c"/>
-              <path d="M138,85 L162,85" fill="none" style="stroke:var(--gold)" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-              <text x="188" y="80" font-size="11" font-family="var(--font-body)" font-weight="700" style="fill:var(--felt)">물결이</text>
-              <text x="188" y="96" font-size="10" font-family="var(--font-body)" style="fill:var(--muted)">번져나감</text>
-              <text x="63" y="168" font-size="10" font-family="var(--font-body)" style="fill:var(--muted)">이미 지나감(앞면)</text>
-              <defs>
-                <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto">
-                  <path d="M0,0 L9,4.5 L0,9 Z" style="fill:var(--gold)"/>
-                </marker>
-              </defs>
+            <svg viewBox="0 0 240 170" width="100%" height="170" role="img" aria-label="오른쪽 아래 모서리가 손가락 위치로 반사되어 접히는 다이어그램">
+              <rect x="30" y="16" width="150" height="138" rx="10" style="fill:#241a3d; stroke:var(--gold)" stroke-width="2"/>
+              <path d="M180,154 L110,84 L150,44 L180,74 Z" style="fill:#FBF9F4; stroke:rgba(0,0,0,.15)" stroke-width="1"/>
+              <text x="150" y="60" font-size="12" font-family="var(--font-mono)" font-weight="700" style="fill:var(--banker)">9</text>
+              <line x1="110" y1="84" x2="150" y2="44" style="stroke:var(--gold)" stroke-width="1.5" stroke-dasharray="3 3"/>
+              <circle cx="180" cy="154" r="3" style="fill:var(--muted)"/>
+              <text x="184" y="150" font-size="9" font-family="var(--font-body)" style="fill:var(--muted)">원래 모서리(F0)</text>
+              <circle cx="150" cy="44" r="4" style="fill:var(--gold)"/>
+              <text x="120" y="34" font-size="9" font-family="var(--font-body)" font-weight="700" style="fill:var(--gold)">현재 손가락(F)</text>
+              <text x="70" y="90" font-size="10" font-family="var(--font-body)" font-weight="700" style="fill:var(--felt)">본체(뒷면, 고정)</text>
+              <defs/>
             </svg>
             <ul class="plain" style="margin:0;">
-              <li><b>어느 변이든 시작점</b> — 터치 시작 위치에서 가장 가까운 변(상/하/좌/우)이 자동으로 힌지가 된다. 여러 변에서 이어서 시도하면 뒤집힌 영역이 누적된다.</li>
-              <li><b>물결 = 전환 구간</b> — 아직 안 닿은 영역(뒷면, 평평) → 물결(완만하게 부풀며 뒷면·앞면이 섞임) → 이미 지나간 영역(앞면, 다시 평평) 순으로 자연스럽게 이어진다.</li>
-              <li><b>손을 떼면 멈춤</b> — 살짝만 건드리면 원래대로, 어느 정도 넘기면 그 상태로 유지, 거의 끝까지 가면 완전히 공개된다.</li>
+              <li><b>접힘 경계선</b> — F0(원래 모서리)와 F(현재 손가락)를 잇는 선분의 수직이등분선. 손가락이 움직이면 이 선도 함께 움직인다.</li>
+              <li><b>플랩만 반사됨</b> — 경계선을 넘어 F0에 가까운 좁은 영역만 경계선을 축으로 반사되어, F0에 있던 꼭짓점이 정확히 F로 이동한다. 반사된 플랩엔 카드 앞면이(좌우가 뒤집힌 채로) 비친다.</li>
+              <li><b>본체는 무변화</b> — 경계선 반대쪽 대부분의 카드는 전혀 움직이지 않고 뒷면 그대로 남는다.</li>
             </ul>
           </div>
         </div>
-        <p class="diagram-caption">진행률은 드래그 거리에 직접 연동되며(시간 기반 애니메이션 아님), 서버와 다른 참가자에게 실시간 전송된다.</p>
+        <p class="diagram-caption">접힘 경계선은 가로·세로 좌표 하나가 아니라 드래그 벡터로 계산되는 2차원 선이다.</p>
 
         <div class="phase-strip">
           <div class="phase-step">
@@ -666,30 +662,30 @@ flowchart TD
           </div>
           <div class="phase-step">
             <span class="n">STEP 2</span>
-            <h4>원하는 변에서 드래그 시작</h4>
-            <p>가장 가까운 변이 힌지로 잡히고, 안쪽으로 당긴 거리만큼 물결이 번져 들어감</p>
+            <h4>오른쪽 아래 모서리 근처에서 시작</h4>
+            <p>그 근처가 아니면 드래그가 시작되지 않음. 안쪽으로 당길수록 접힘 경계선이 안으로 밀려 들어감</p>
           </div>
           <div class="phase-step">
             <span class="n">STEP 3</span>
-            <h4>손을 떼거나 이어서 계속</h4>
-            <p>살짝이면 원복, 중간이면 그 상태로 고정, 다른 변에서 다시 시도하면 누적</p>
+            <h4>손을 놓으면 튕겨 돌아감</h4>
+            <p>충분히 멀리 당기지 않았다면 플랩이 탄력 있게 원래 모서리로 복귀 — 화면은 다시 뒷면만</p>
           </div>
           <div class="phase-step">
             <span class="n">STEP 4</span>
-            <h4>완전 공개 · 브로드캐스트</h4>
-            <p>진행률만 실시간 전송해 관전자도 같은 속도로 함께 지켜봄, 100% 도달 시 결과 확정</p>
+            <h4>완전 공개 조건 도달</h4>
+            <p>대각선의 약 60% 이상 당긴 뒤 놓으면 카드 전체가 앞면으로 확정 전환, 결과 확정</p>
           </div>
         </div>
 
         <ul class="plain">
-          <li><b>입력 방식</b> — 화면 아무 변이든 눌러 안쪽으로 드래그하는 단일 제스처(모바일 터치·데스크톱 마우스 공통). 힌지가 되는 변은 터치 시작 위치로 자동 판별.</li>
-          <li><b>구현 방식</b> — Canvas 2D. 카드를 촘촘한 셀 격자로 나누고, 각 셀의 "물결까지의 거리"에 따라 뒷면/앞면 텍스처 중 하나를 골라 그린다. 물결 구간의 셀은 높이(Z)를 부여해 화면 중심 기준 원근 배율로 확대·축소해서 그려 부풀어 오르는 곡면처럼 보이게 한다 — WebGL 없이도 실시간 변형이 가능한 가벼운 방식.</li>
-          <li><b>누적 상태</b> — 셀마다 "이미 뒤집혔는지"를 별도로 기억해서, 다른 변에서 다시 스퀴즈해도 이전에 뒤집힌 영역은 유지된 채 새 영역이 추가로 뒤집힌다.</li>
-          <li><b>동기화</b> — 실제 카드 값이 아니라 "어느 변에서 얼마나 진행했는지"만 WebSocket으로 브로드캐스트, 완전 공개 시점에만 서버가 카드 값을 전체 공개</li>
+          <li><b>입력 방식</b> — 오른쪽 아래 모서리 부근(카드 짧은 변 기준 약 40% 반경)에서만 드래그 시작 가능. 다른 세 모서리는 이후 검증되면 동일한 방식으로 확장.</li>
+          <li><b>구현 방식</b> — Canvas 2D. 카드 사각형을 접힘 경계선으로 잘라(폴리곤 클리핑) 본체/플랩으로 나눈다. 본체는 뒷면 텍스처를 그 모양대로 클립해서 그대로 그리고(변형 없음), 플랩은 촘촘한 삼각형 메시로 나눠 각 정점을 경계선 기준으로 반사하되 경계선 바로 옆 좁은 구간(반경만큼)은 원기둥 곡면 공식으로 부드럽게 굽혀 종이가 말리는 느낌을 준다. 각 삼각형은 원래(뒷면 기준) 좌표를 그대로 텍스처 좌표로 써서 앞면을 매핑하고, 화면 배치용 3점 어파인 변환으로 그린다 — 반사 자체가 텍스처를 좌우로 뒤집어 보이게 만든다(실제 종이를 접었을 때와 동일).</li>
+          <li><b>그림자</b> — 플랩의 굽은 경계 실루엣을 블러 처리한 검은 다각형으로 플랩보다 먼저 그려 붕 떠 보이는 효과.</li>
+          <li><b>동기화</b> — 실제 카드 값이 아니라 현재 손가락(접힘) 위치만 WebSocket으로 브로드캐스트, 완전 공개 시점에만 서버가 카드 값을 전체 공개</li>
           <li><b>레이아웃</b> — <a href="#card-rules">03장</a>에서 정한 대로 처음 2장은 세로로 나란히, 3번째 카드는 그 아래 가로로 배치. 쪼기는 각 카드에 동일하게 적용.</li>
           <li><b>동률 처리</b> — 최고 베팅액이 같은 참가자가 여럿이면, 그 라운드에서 베팅을 먼저 확정한 사람이 쪼기 권한을 가짐</li>
           <li><b>미조작 시</b> — 제한시간 내 시작하지 않으면 자동 공개로 전환</li>
-          <li><b>후속 검토</b> — 지금은 드래그 방향과 무관하게 가까운 변을 기준으로 수직/수평 물결만 지원한다. 모서리를 잡고 대각선으로 마는 동작은 실제 화면에서 반응을 본 뒤 추가 여부를 결정.</li>
+          <li><b>후속 검토</b> — 나머지 세 모서리·변 지원, 접힘 상태가 여러 번의 시도에 걸쳐 누적될지(현재는 손을 떼면 완전히 복귀) 여부는 이 버전으로 실제 반응을 본 뒤 결정.</li>
         </ul>
       </section>
 

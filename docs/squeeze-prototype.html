@@ -17,7 +17,7 @@
 <div class="page">
   <header>
     <h1>바카라 스퀴즈 프로토타입</h1>
-    <p>화면 가장자리를 눌러 안쪽으로 드래그 — 어느 변에서든 가능</p>
+    <p>오른쪽 아래 모서리 근처를 눌러 안쪽으로 드래그 — 진짜로 접힙니다</p>
   </header>
   <div class="stage">
     <canvas id="cardCanvas"></canvas>
@@ -36,8 +36,6 @@
   var edgeReadout = document.getElementById('edgeReadout');
 
   var W = 0, H = 0, dpr = Math.max(1, window.devicePixelRatio || 1);
-  var cols = 20, rows = 30, cellW = 0, cellH = 0;
-  var baked = null;
 
   var TW = 480, TH = 800;
   var backTex = document.createElement('canvas');
@@ -116,6 +114,9 @@
   drawBack(backTex.getContext('2d'), TW, TH);
   drawFront(frontTex.getContext('2d'), TW, TH);
 
+  var state = { dragging: false, revealed: false, F0: { x: 0, y: 0 }, F: { x: 0, y: 0 }, target: null, everTouched: false };
+  var CURL_R = 44;
+
   function resize() {
     var rect = canvas.getBoundingClientRect();
     W = Math.max(1, Math.round(rect.width));
@@ -123,176 +124,261 @@
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var cellSize = 18;
-    cols = Math.max(8, Math.round(W / cellSize));
-    rows = Math.max(8, Math.round(H / cellSize));
-    cellW = W / cols; cellH = H / rows;
-    baked = new Float32Array(cols * rows).fill(1);
+    state.F0 = { x: W, y: H };
+    if (!state.dragging && !state.target && !state.revealed) state.F = { x: W, y: H };
   }
   window.addEventListener('resize', resize);
   resize();
 
-  var state = { dragging: false, edge: null, dragAmt: 0, target: 0, animating: false, everTouched: false };
-  var WAVE_FRAC = 0.20, AMP_FRAC = 0.15;
-
-  function edgeFor(x, y) {
-    var dl = x, dr = W - x, dt = y, db = H - y;
-    var m = Math.min(dl, dr, dt, db);
-    if (m === dl) return 'left';
-    if (m === dr) return 'right';
-    if (m === dt) return 'top';
-    return 'bottom';
-  }
-  function maxExtentFor(edge) { return (edge === 'left' || edge === 'right') ? W : H; }
-  function sFor(edge, x, y) {
-    if (edge === 'left') return x;
-    if (edge === 'right') return W - x;
-    if (edge === 'top') return y;
-    return H - y;
-  }
-  function waveAt(s, dragAmt, maxExtent) {
-    var wave = WAVE_FRAC * maxExtent, amp = AMP_FRAC * maxExtent;
-    var d = s - dragAmt;
-    if (d < -wave) return { facing: -1, z: 0 };
-    if (d > wave) return { facing: 1, z: 0 };
-    var phi = (d + wave) / (2 * wave) * Math.PI;
-    return { facing: Math.cos(phi), z: amp * Math.sin(phi) };
-  }
-  function bakeAt(edge, dragAmt) {
-    var maxExtent = maxExtentFor(edge);
-    for (var r = 0; r < rows; r++) {
-      for (var c2 = 0; c2 < cols; c2++) {
-        var cx = (c2 + 0.5) * cellW, cy = (r + 0.5) * cellH;
-        var s = sFor(edge, cx, cy);
-        var w = waveAt(s, dragAmt, maxExtent);
-        var idx = r * cols + c2;
-        baked[idx] = Math.min(baked[idx], w.facing);
-      }
-    }
-  }
   function pointerLocal(e) {
     var rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
+  function withinStartZone(x, y) {
+    var r = Math.min(W, H) * 0.42;
+    var dx = W - x, dy = H - y;
+    return Math.sqrt(dx * dx + dy * dy) < r;
+  }
   function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
   function onDown(e) {
+    if (state.revealed) return;
     var p = pointerLocal(e);
-    state.dragging = true; state.animating = false; state.everTouched = true;
-    state.edge = edgeFor(p.x, p.y);
-    state.dragAmt = Math.max(0, sFor(state.edge, p.x, p.y));
+    if (!withinStartZone(p.x, p.y)) return;
+    state.dragging = true; state.target = null; state.everTouched = true;
+    state.F = { x: p.x, y: p.y };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   }
   function onMove(e) {
     if (!state.dragging) return;
     var p = pointerLocal(e);
-    var s = sFor(state.edge, p.x, p.y);
-    var maxExtent = maxExtentFor(state.edge);
-    state.dragAmt = Math.max(0, Math.min(maxExtent, s));
+    state.F = {
+      x: Math.max(-W * 0.3, Math.min(W * 1.1, p.x)),
+      y: Math.max(-H * 0.3, Math.min(H * 1.1, p.y))
+    };
   }
   function onUp() {
     if (!state.dragging) return;
     state.dragging = false;
-    var maxExtent = maxExtentFor(state.edge);
-    var frac = state.dragAmt / maxExtent;
-    if (frac < 0.12) {
-      state.target = 0; state.animating = true;
-    } else if (frac > 0.86) {
-      bakeAt(state.edge, state.dragAmt);
-      for (var i = 0; i < baked.length; i++) baked[i] = -1;
-      state.target = 0; state.animating = true;
-      vibrate(30);
+    var dx = state.F.x - state.F0.x, dy = state.F.y - state.F0.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var diag = Math.sqrt(W * W + H * H);
+    if (dist > diag * 0.6) {
+      state.target = { x: -W * 0.2, y: -H * 0.2, full: true };
+      vibrate(28);
     } else {
-      bakeAt(state.edge, state.dragAmt);
-      state.target = 0; state.animating = true;
-      vibrate(12);
+      state.target = { x: state.F0.x, y: state.F0.y, full: false };
+      vibrate(10);
     }
   }
-
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
   resetBtn.addEventListener('click', function () {
-    baked.fill(1); state.dragAmt = 0; state.target = 0; state.animating = false; state.edge = null;
+    state.revealed = false; state.dragging = false; state.target = null;
+    state.F = { x: state.F0.x, y: state.F0.y };
   });
 
-  function edgeLabel(e) { return { left: '왼쪽 변', right: '오른쪽 변', top: '윗변', bottom: '아랫변' }[e] || e; }
+  function clipPoly(poly, mx, my, nx, ny, keepPos) {
+    var out = [], n = poly.length;
+    for (var i = 0; i < n; i++) {
+      var cur = poly[i], prev = poly[(i + n - 1) % n];
+      var sCur = (cur.x - mx) * nx + (cur.y - my) * ny;
+      var sPrev = (prev.x - mx) * nx + (prev.y - my) * ny;
+      var curIn = keepPos ? sCur >= 0 : sCur < 0;
+      var prevIn = keepPos ? sPrev >= 0 : sPrev < 0;
+      if (curIn) {
+        if (!prevIn) {
+          var t = sPrev / (sPrev - sCur);
+          out.push({ x: prev.x + (cur.x - prev.x) * t, y: prev.y + (cur.y - prev.y) * t });
+        }
+        out.push(cur);
+      } else if (prevIn) {
+        var t2 = sPrev / (sPrev - sCur);
+        out.push({ x: prev.x + (cur.x - prev.x) * t2, y: prev.y + (cur.y - prev.y) * t2 });
+      }
+    }
+    return out;
+  }
+
+  function affine(dx0, dy0, dx1, dy1, dx2, dy2, u0, v0, u1, v1, u2, v2) {
+    var den = u0 * (v1 - v2) + u1 * (v2 - v0) + u2 * (v0 - v1);
+    if (Math.abs(den) < 1e-6) return null;
+    var a = (dx0 * (v1 - v2) + dx1 * (v2 - v0) + dx2 * (v0 - v1)) / den;
+    var b = (dy0 * (v1 - v2) + dy1 * (v2 - v0) + dy2 * (v0 - v1)) / den;
+    var c = (dx0 * (u2 - u1) + dx1 * (u0 - u2) + dx2 * (u1 - u0)) / den;
+    var d = (dy0 * (u2 - u1) + dy1 * (u0 - u2) + dy2 * (u1 - u0)) / den;
+    var e = (dx0 * (u1 * v2 - u2 * v1) + dx1 * (u2 * v0 - u0 * v2) + dx2 * (u0 * v1 - u1 * v0)) / den;
+    var f = (dy0 * (u1 * v2 - u2 * v1) + dy1 * (u2 * v0 - u0 * v2) + dy2 * (u0 * v1 - u1 * v0)) / den;
+    return [a, b, c, d, e, f];
+  }
+
+  function drawTri(tex, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
+    var m = affine(dx0, dy0, dx1, dy1, dx2, dy2, sx0, sy0, sx1, sy1, sx2, sy2);
+    if (!m) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(dx0, dy0); ctx.lineTo(dx1, dy1); ctx.lineTo(dx2, dy2); ctx.closePath();
+    ctx.clip();
+    ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+    ctx.drawImage(tex, 0, 0);
+    ctx.restore();
+  }
 
   function render() {
     ctx.clearRect(0, 0, W, H);
-    var cx = W / 2, cy = H / 2;
-    var D = Math.max(W, H) * 2.4;
-    var edge = state.edge || 'left';
-    var maxExtent = maxExtentFor(edge);
-    var dragAmt = state.dragAmt;
 
-    var cells = [];
-    var maxZ = 0, peakX = cx, peakY = cy;
-    for (var r = 0; r < rows; r++) {
-      for (var c2 = 0; c2 < cols; c2++) {
-        var idx = r * cols + c2;
-        var bv = baked[idx];
-        var x0 = c2 * cellW, x1 = x0 + cellW, y0 = r * cellH, y1 = y0 + cellH;
-        var cxCell = (x0 + x1) / 2, cyCell = (y0 + y1) / 2;
-        var facing = bv, z = 0;
-        if (state.edge) {
-          var s = sFor(edge, cxCell, cyCell);
-          var wv = waveAt(s, dragAmt, maxExtent);
-          facing = Math.min(bv, wv.facing);
-          if (bv > 0.999) z = wv.z;
-          if (z > maxZ) { maxZ = z; peakX = cxCell; peakY = cyCell; }
-        }
-        cells.push({ x0: x0, y0: y0, x1: x1, y1: y1, facing: facing, z: z });
-      }
-    }
-    cells.sort(function (a, b) { return a.z - b.z; });
-
-    if (maxZ > 0.5) {
-      var shR = Math.max(W, H) * 0.22 * (maxZ / (AMP_FRAC * maxExtent || 1));
-      var grad = ctx.createRadialGradient(peakX, peakY + shR * 0.3, 2, peakX, peakY + shR * 0.3, shR);
-      grad.addColorStop(0, 'rgba(0,0,0,0.35)');
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.ellipse(peakX, peakY + shR * 0.3, shR, shR * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-    }
-
-    for (var i2 = 0; i2 < cells.length; i2++) {
-      var cell = cells[i2];
-      var f = D / (D - cell.z);
-      var px0 = cx + (cell.x0 - cx) * f, px1 = cx + (cell.x1 - cx) * f;
-      var py0 = cy + (cell.y0 - cy) * f, py1 = cy + (cell.y1 - cy) * f;
-      var tex = cell.facing >= 0 ? backTex : frontTex;
-      var fx0 = cell.x0 / W, fx1 = cell.x1 / W, fy0 = cell.y0 / H, fy1 = cell.y1 / H;
-      var sx0 = fx0 * TW, sy0 = fy0 * TH, sw = (fx1 - fx0) * TW, sh = (fy1 - fy0) * TH;
-      ctx.drawImage(tex, sx0, sy0, sw, sh, px0, py0, px1 - px0, py1 - py0);
-      if (cell.z > 0.5) {
-        var t = Math.min(1, cell.z / (AMP_FRAC * maxExtent || 1));
-        ctx.fillStyle = 'rgba(255,240,210,' + (0.16 * t) + ')';
-        ctx.fillRect(px0, py0, px1 - px0, py1 - py0);
+    if (state.target) {
+      state.F.x += (state.target.x - state.F.x) * 0.24;
+      state.F.y += (state.target.y - state.F.y) * 0.24;
+      var settleDist = Math.hypot(state.target.x - state.F.x, state.target.y - state.F.y);
+      if (settleDist < 1.5) {
+        if (state.target.full) state.revealed = true;
+        state.F = { x: state.F0.x, y: state.F0.y };
+        state.target = null;
       }
     }
 
-    if (!state.everTouched) {
+    if (state.revealed) {
+      ctx.drawImage(frontTex, 0, 0, TW, TH, 0, 0, W, H);
+      edgeReadout.textContent = '완전 공개';
+      requestAnimationFrame(render);
+      return;
+    }
+
+    var F0 = state.F0, F = state.F;
+    var dx = F.x - F0.x, dy = F.y - F0.y;
+    var dragLen = Math.hypot(dx, dy);
+
+    if (dragLen < 1) {
+      ctx.drawImage(backTex, 0, 0, TW, TH, 0, 0, W, H);
+      if (!state.everTouched) {
+        ctx.save();
+        ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 500);
+        ctx.fillStyle = '#D8B15C';
+        ctx.font = '22px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('◤', W - 22, H - 22);
+        ctx.restore();
+      }
+      edgeReadout.textContent = '대기 중';
+      requestAnimationFrame(render);
+      return;
+    }
+
+    var nx = dx / dragLen, ny = dy / dragLen;
+    var tx = -ny, ty = nx;
+    var mx = (F0.x + F.x) / 2, my = (F0.y + F.y) / 2;
+
+    var rectPoly = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
+    var bodyPoly = clipPoly(rectPoly, mx, my, nx, ny, true);
+    var flapPoly = clipPoly(rectPoly, mx, my, nx, ny, false);
+
+    if (bodyPoly.length >= 3) {
       ctx.save();
-      ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 500);
-      ctx.fillStyle = '#D8B15C';
-      ctx.font = '20px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('◀', 14, H / 2);
-      ctx.fillText('▶', W - 14, H / 2);
-      ctx.fillText('▲', W / 2, 16);
-      ctx.fillText('▼', W / 2, H - 16);
+      ctx.beginPath();
+      ctx.moveTo(bodyPoly[0].x, bodyPoly[0].y);
+      for (var bi = 1; bi < bodyPoly.length; bi++) ctx.lineTo(bodyPoly[bi].x, bodyPoly[bi].y);
+      ctx.closePath(); ctx.clip();
+      ctx.drawImage(backTex, 0, 0, TW, TH, 0, 0, W, H);
       ctx.restore();
     }
 
-    if (!state.dragging && state.animating) {
-      state.dragAmt += (state.target - state.dragAmt) * 0.22;
-      if (Math.abs(state.target - state.dragAmt) < 0.6) { state.dragAmt = state.target; state.animating = false; }
+    if (flapPoly.length >= 3) {
+      var dMax = 0, tMin = Infinity, tMax = -Infinity;
+      for (var fi = 0; fi < flapPoly.length; fi++) {
+        var pt = flapPoly[fi];
+        var s = (pt.x - mx) * nx + (pt.y - my) * ny;
+        var d = -s;
+        var t = (pt.x - mx) * tx + (pt.y - my) * ty;
+        if (d > dMax) dMax = d;
+        if (t < tMin) tMin = t;
+        if (t > tMax) tMax = t;
+      }
+      dMax = Math.max(dMax, 4);
+      if (tMax - tMin < 2) { tMin -= 2; tMax += 2; }
+
+      var DSEG = 14, TSEG = 10;
+      var dStep = dMax / DSEG, tStep = (tMax - tMin) / TSEG;
+
+      function curl(d) {
+        var phi = Math.min(d / CURL_R, 1) * Math.PI;
+        return { alongN: -d * Math.cos(phi), z: CURL_R * Math.sin(phi) };
+      }
+      function worldAt(d, t) { return { x: mx - d * nx + t * tx, y: my - d * ny + t * ty }; }
+      function curledAt(d, t) {
+        var cu = curl(d);
+        return { x: mx + cu.alongN * nx + t * tx, y: my + cu.alongN * ny + t * ty, z: cu.z };
+      }
+
+      var cx = W / 2, cy = H / 2, D = Math.max(W, H) * 2.6;
+      function project(p) {
+        var f = D / (D - p.z);
+        return { x: cx + (p.x - cx) * f, y: cy + (p.y - cy) * f };
+      }
+
+      var pts = [];
+      for (var di = 0; di <= DSEG; di++) {
+        var row = [];
+        var d0 = di * dStep;
+        for (var ti = 0; ti <= TSEG; ti++) {
+          var t0 = tMin + ti * tStep;
+          var rest = worldAt(d0, t0);
+          var ok = rest.x >= -2 && rest.x <= W + 2 && rest.y >= -2 && rest.y <= H + 2;
+          var curled = curledAt(d0, t0);
+          var screen = project(curled);
+          row.push({ sx: rest.x, sy: rest.y, dx: screen.x, dy: screen.y, z: curled.z, ok: ok });
+        }
+        pts.push(row);
+      }
+
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.filter = 'blur(10px)';
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      var edgeRow = pts[DSEG];
+      for (var ei = 0; ei <= TSEG; ei++) {
+        var pe = edgeRow[ei];
+        if (ei === 0) ctx.moveTo(pe.dx, pe.dy); else ctx.lineTo(pe.dx, pe.dy);
+      }
+      for (var ei2 = TSEG; ei2 >= 0; ei2--) {
+        var pe2 = pts[0][ei2];
+        ctx.lineTo(pe2.dx, pe2.dy);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+
+      var tris = [];
+      for (var di2 = 0; di2 < DSEG; di2++) {
+        for (var ti2 = 0; ti2 < TSEG; ti2++) {
+          var p00 = pts[di2][ti2], p10 = pts[di2 + 1][ti2], p01 = pts[di2][ti2 + 1], p11 = pts[di2 + 1][ti2 + 1];
+          if (!(p00.ok || p10.ok || p01.ok || p11.ok)) continue;
+          tris.push({ z: (p00.z + p10.z + p01.z) / 3, a: p00, b: p10, c: p01 });
+          tris.push({ z: (p10.z + p11.z + p01.z) / 3, a: p10, b: p11, c: p01 });
+        }
+      }
+      tris.sort(function (t1, t2) { return t1.z - t2.z; });
+      for (var qi = 0; qi < tris.length; qi++) {
+        var tri = tris[qi];
+        drawTri(frontTex,
+          tri.a.sx / W * TW, tri.a.sy / H * TH,
+          tri.b.sx / W * TW, tri.b.sy / H * TH,
+          tri.c.sx / W * TW, tri.c.sy / H * TH,
+          tri.a.dx, tri.a.dy, tri.b.dx, tri.b.dy, tri.c.dx, tri.c.dy);
+        var lt = Math.max(0, Math.min(1, tri.z / CURL_R));
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(tri.a.dx, tri.a.dy); ctx.lineTo(tri.b.dx, tri.b.dy); ctx.lineTo(tri.c.dx, tri.c.dy); ctx.closePath();
+        ctx.fillStyle = 'rgba(255,240,210,' + (0.22 * lt) + ')';
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
-    var pct = state.edge ? Math.round((dragAmt / maxExtent) * 100) : 0;
-    edgeReadout.textContent = state.edge ? (edgeLabel(state.edge) + ' · ' + pct + '%') : '대기 중';
+    var pct = Math.round(Math.min(1, dragLen / (Math.hypot(W, H) * 0.6)) * 100);
+    edgeReadout.textContent = '오른쪽 아래 · ' + pct + '%';
 
     requestAnimationFrame(render);
   }
