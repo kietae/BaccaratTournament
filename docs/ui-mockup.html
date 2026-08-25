@@ -1,0 +1,506 @@
+<title>바카라 UI 목업 — 카드 & 베팅 레이아웃</title>
+<style>
+  :root {
+    --void: #0A0912;
+    --void-2: #150F22;
+    --felt-1: #124A34;
+    --felt-2: #0A2C1F;
+    --felt-3: #061A12;
+    --surface: #18131F;
+    --surface-2: #1F1A29;
+    --line: rgba(255,255,255,0.09);
+    --gold: #D8B15C;
+    --gold-bright: #F3D98A;
+    --gold-deep: #7A5A22;
+    --violet: #8E6DFF;
+    --ink: #F4EFE3;
+    --muted: #A6A2B8;
+    --muted-2: #746F87;
+    --banker: #E5615C;
+    --player: #5B9BFF;
+    --radius: 16px;
+    --font-display: Georgia, 'Nanum Myeongjo', 'Batang', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Segoe UI', sans-serif;
+    --font-mono: 'SFMono-Regular', Consolas, 'Noto Sans Mono', Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--gold-bright); }
+  button:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+  .page { position: relative; max-width: 1040px; margin: 0 auto; padding: 0 22px 100px; }
+
+  .ambient { position: fixed; inset: 0; overflow: hidden; z-index: -1; pointer-events: none; }
+  .ambient span { position: absolute; border-radius: 50%; filter: blur(60px); }
+  .ambient .g1 { width: 480px; height: 480px; top: -120px; left: 8%; background: radial-gradient(circle, rgba(142,109,255,0.32), transparent 70%); }
+  .ambient .g2 { width: 520px; height: 520px; bottom: -160px; right: 4%; background: radial-gradient(circle, rgba(216,177,92,0.22), transparent 70%); }
+  .ambient .g3 { width: 360px; height: 360px; top: 40%; left: 50%; transform: translateX(-50%); background: radial-gradient(circle, rgba(18,74,52,0.35), transparent 70%); }
+
+  header.intro { padding: 64px 0 40px; border-bottom: 1px solid var(--line); margin-bottom: 52px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--gold-bright); background: rgba(216,177,92,0.12);
+    border: 1px solid rgba(216,177,92,0.35);
+    border-radius: 999px; padding: 5px 13px; margin-bottom: 22px;
+  }
+  h1.title {
+    font-family: var(--font-display); font-style: italic; font-weight: 400;
+    font-size: clamp(34px, 5vw, 54px); line-height: 1.12; margin: 0 0 16px;
+    letter-spacing: -0.01em; text-wrap: balance;
+    color: var(--gold-bright);
+  }
+  header.intro p { max-width: 62ch; color: var(--muted); font-size: 16.5px; margin: 0 0 10px; }
+  .disclaimer { font-size: 12.5px; color: var(--muted-2); max-width: 62ch; border-left: 2px solid var(--line); padding-left: 12px; margin-top: 18px; }
+
+  section.stage { margin-bottom: 76px; }
+  section.stage h2 {
+    font-family: var(--font-display); font-style: italic; font-weight: 400;
+    font-size: 25px; color: var(--gold-bright); margin: 0 0 8px;
+  }
+  section.stage > p.desc { color: var(--muted); max-width: 62ch; margin: 0 0 30px; font-size: 15px; }
+
+  /* ---------------- Card back showcase ---------------- */
+  .card-back-row { display: flex; gap: 28px; flex-wrap: wrap; align-items: center; }
+
+  .pcard { border-radius: 11px; position: relative; box-shadow: 0 18px 40px rgba(0,0,0,0.55); }
+  .pcard.lg { width: 158px; height: 221px; }
+  .pcard.md { width: 92px; height: 129px; }
+  .pcard.sm { width: 66px; height: 92px; }
+
+  .pcard.back {
+    background:
+      radial-gradient(circle at 50% 42%, rgba(216,177,92,0.30), transparent 62%),
+      linear-gradient(155deg, #241a3d 0%, #0c0a15 72%);
+    border: 2px solid var(--gold);
+  }
+  .pcard.back::before {
+    content: ""; position: absolute; inset: 9px; border-radius: 7px;
+    border: 1px solid rgba(216,177,92,0.5);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(216,177,92,0.10) 0 2px, transparent 2px 13px),
+      repeating-linear-gradient(-45deg, rgba(216,177,92,0.10) 0 2px, transparent 2px 13px);
+  }
+  .pcard.lg.back::after, .pcard.md.back::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    width: 30%; height: 30%; transform: translate(-50%,-50%) rotate(45deg);
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold) 55%, var(--gold-deep));
+    box-shadow: 0 0 26px 4px rgba(216,177,92,0.4);
+    border-radius: 15%;
+  }
+  .pcard.sm.back::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    width: 26%; height: 26%; transform: translate(-50%,-50%) rotate(45deg);
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold) 55%, var(--gold-deep));
+    border-radius: 15%;
+  }
+
+  .pcard.front { background: #FBF9F4; border: 1px solid rgba(0,0,0,0.12); overflow: hidden; }
+  .pcard.front .corner {
+    position: absolute; font-family: var(--font-mono); font-weight: 700; line-height: 1;
+    text-align: center;
+  }
+  .pcard.front .corner .rank { display: block; font-size: 15px; }
+  .pcard.front .corner .suit { display: block; font-size: 12px; }
+  .pcard.front .corner.tl { top: 8px; left: 8px; }
+  .pcard.front .corner.br { bottom: 8px; right: 8px; transform: rotate(180deg); }
+  .pcard.front .pip { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 46px; }
+  .pcard.front.red { color: var(--banker); }
+  .pcard.front.black { color: #1a1a1a; }
+
+  .card-back-notes { display: flex; flex-direction: column; gap: 10px; max-width: 40ch; font-size: 14px; color: var(--muted); }
+  .card-back-notes b { color: var(--ink); }
+
+  /* ---------------- Phone mockup ---------------- */
+  .stage-phone-wrap { display: flex; justify-content: center; }
+  .phone { width: 100%; max-width: 366px; }
+  .phone-frame {
+    background: linear-gradient(160deg, #221a34, #0b0914);
+    border-radius: 44px; padding: 13px;
+    box-shadow: 0 36px 80px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .phone-notch { width: 118px; height: 20px; background: #0b0914; border-radius: 0 0 14px 14px; margin: 0 auto 6px; }
+  .phone-screen {
+    background: linear-gradient(180deg, #0f3d2b 0%, #0a2c1f 42%, #061a12 100%);
+    border-radius: 30px; overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+
+  .statusbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 4px; font-family: var(--font-mono); font-size: 11.5px; color: rgba(244,239,227,0.7); }
+  .statusbar .round-pill {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+    background: rgba(216,177,92,0.14); border: 1px solid rgba(216,177,92,0.4); color: var(--gold-bright);
+    padding: 3px 10px; border-radius: 999px;
+  }
+  .statusbar .live { display: inline-flex; align-items: center; gap: 5px; }
+  .statusbar .dot { width: 6px; height: 6px; border-radius: 50%; background: #58D68D; box-shadow: 0 0 6px #58D68D; }
+
+  .road-strip { display: flex; gap: 3px; padding: 10px 18px 6px; overflow-x: auto; }
+  .road-strip .col { display: flex; flex-direction: column; gap: 3px; }
+  .road-strip .dot { width: 9px; height: 9px; border-radius: 50%; box-sizing: border-box; }
+  .road-strip .dot.p { border: 1.6px solid var(--player); }
+  .road-strip .dot.b { border: 1.6px solid var(--banker); }
+  .road-strip .dot.tie::after { content:""; position:absolute; }
+
+  .call-caption {
+    align-self: center; margin: 6px auto 10px;
+    font-size: 12px; color: var(--gold-bright);
+    background: rgba(6,10,8,0.55); border: 1px solid rgba(216,177,92,0.35);
+    padding: 5px 14px; border-radius: 999px;
+    font-family: var(--font-mono); letter-spacing: 0.02em;
+  }
+
+  .table-felt {
+    margin: 0 14px; padding: 16px 12px 20px; border-radius: 18px;
+    background: radial-gradient(120% 100% at 50% 0%, rgba(216,177,92,0.08), transparent 55%), var(--felt-2);
+    border: 1px solid rgba(216,177,92,0.22);
+    display: flex; justify-content: space-between; gap: 10px;
+  }
+  .hand { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .hand .hand-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; color: var(--muted); }
+  .hand .cards { display: flex; gap: 6px; }
+  .hand .total {
+    font-family: var(--font-mono); font-weight: 700; font-size: 15px;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.35); border: 1px solid rgba(216,177,92,0.4); color: var(--gold-bright);
+  }
+  .hand.player .hand-label { color: var(--player); }
+  .hand.banker .hand-label { color: var(--banker); }
+
+  .bet-rail { padding: 16px 16px 4px; }
+  .main-spots { display: flex; gap: 8px; }
+  .spot {
+    flex: 1; border-radius: 14px; padding: 10px 6px 8px; text-align: center;
+    background: rgba(6,10,8,0.4); position: relative;
+  }
+  .spot .name { font-family: var(--font-body); font-weight: 700; font-size: 12px; letter-spacing: 0.04em; }
+  .spot .odds { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .spot.player { border: 1.5px solid var(--player); box-shadow: inset 0 0 14px rgba(91,155,255,0.12); }
+  .spot.player .name { color: var(--player); }
+  .spot.tie { border: 1.5px solid var(--gold); box-shadow: inset 0 0 14px rgba(216,177,92,0.14); }
+  .spot.tie .name { color: var(--gold-bright); }
+  .spot.banker { border: 1.5px solid var(--banker); box-shadow: inset 0 0 14px rgba(229,97,92,0.12); }
+  .spot.banker .name { color: var(--banker); }
+  .spot .stack { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); }
+
+  .side-spots { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; padding-bottom: 2px; }
+  .side-spot {
+    flex: none; min-width: 74px; text-align: center; border-radius: 10px;
+    padding: 6px 8px; background: rgba(6,10,8,0.4); border: 1px solid var(--line);
+  }
+  .side-spot .name { font-size: 9.5px; font-weight: 700; color: var(--ink); letter-spacing: 0.02em; }
+  .side-spot .odds { font-family: var(--font-mono); font-size: 9.5px; color: var(--gold-bright); margin-top: 1px; }
+
+  .mini-chip { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 7px; font-weight: 700; border: 2px dashed rgba(255,255,255,0.4); box-shadow: 0 2px 5px rgba(0,0,0,0.35); }
+
+  .chip-tray { display: flex; gap: 10px; padding: 16px 16px 6px; overflow-x: auto; }
+  .chip {
+    flex: none; width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    border: 3px dashed rgba(255,255,255,0.35);
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,0.25), 0 3px 8px rgba(0,0,0,0.4);
+    font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+    cursor: pointer; transition: transform 0.15s ease;
+  }
+  .chip:hover { transform: translateY(-3px); }
+  .chip.selected { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+  .bottom-bar {
+    margin-top: auto; display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px 20px; border-top: 1px solid rgba(255,255,255,0.08);
+    background: rgba(4,8,6,0.4);
+  }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex: none;
+    background: linear-gradient(140deg, var(--gold-bright), var(--gold-deep));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #1a1408; font-size: 13px;
+  }
+  .who { flex: 1; min-width: 0; }
+  .who .name { font-size: 13px; font-weight: 700; }
+  .who .balance { font-family: var(--font-mono); font-size: 11px; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+  .cta {
+    font-family: var(--font-body); font-weight: 700; font-size: 12.5px;
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+    color: #1a1408; border: none; border-radius: 999px; padding: 10px 18px;
+    white-space: nowrap;
+  }
+
+  /* ---------------- Squeeze demo ---------------- */
+  .squeeze-wrap { display: flex; gap: 36px; flex-wrap: wrap; align-items: center; }
+  .squeeze-stand {
+    width: 168px; height: 236px; position: relative;
+    perspective: 700px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .squeeze-stand .face {
+    position: absolute; inset: 0; border-radius: 12px; overflow: hidden;
+  }
+  .squeeze-stand .face.front { background: #FBF9F4; border: 1px solid rgba(0,0,0,0.12); z-index: 1; }
+  .squeeze-stand .face.back {
+    z-index: 2;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(216,177,92,0.30), transparent 62%),
+      linear-gradient(155deg, #241a3d 0%, #0c0a15 72%);
+    border: 2px solid var(--gold);
+    clip-path: inset(0% calc((1 - var(--p, 0)) * 100%) calc((1 - var(--p, 0)) * 100%) 0% round 12px);
+    transform: rotate(calc(var(--p, 0) * -6deg)) translate(calc(var(--p, 0) * 4px), calc(var(--p, 0) * -4px));
+    transition: clip-path 0.35s ease, transform 0.35s ease;
+  }
+  .squeeze-stand.dragging .face.back { transition: none; }
+  .squeeze-stand .face.back::before {
+    content: ""; position: absolute; inset: 9px; border-radius: 7px;
+    border: 1px solid rgba(216,177,92,0.5);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(216,177,92,0.10) 0 2px, transparent 2px 13px),
+      repeating-linear-gradient(-45deg, rgba(216,177,92,0.10) 0 2px, transparent 2px 13px);
+  }
+  .squeeze-stand .face.back::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    width: 30%; height: 30%; transform: translate(-50%,-50%) rotate(45deg);
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold) 55%, var(--gold-deep));
+    border-radius: 15%;
+  }
+  .squeeze-stand .handle {
+    position: absolute; left: -6px; bottom: -6px; z-index: 3;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(216,177,92,0.16); border: 1.5px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; cursor: grab;
+    transform: translate(calc(var(--p, 0) * 118px), calc(var(--p, 0) * -164px));
+  }
+  .squeeze-stand.dragging .handle { transition: none; cursor: grabbing; }
+  .squeeze-stand:not(.dragging) .handle { transition: transform 0.35s ease; }
+
+  .squeeze-info { display: flex; flex-direction: column; gap: 14px; max-width: 34ch; }
+  .squeeze-info .progress-readout {
+    font-family: var(--font-mono); font-size: 13px; color: var(--gold-bright);
+  }
+  .squeeze-info .bar { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; }
+  .squeeze-info .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright)); width: calc(var(--p, 0) * 100%); }
+  .squeeze-info p { font-size: 13.5px; color: var(--muted); margin: 0; }
+  .reset-btn {
+    align-self: flex-start; font-family: var(--font-mono); font-size: 11.5px;
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 999px; padding: 6px 14px; cursor: pointer;
+  }
+  .reset-btn:hover { border-color: var(--gold); color: var(--gold-bright); }
+
+  @media (max-width: 620px) {
+    .squeeze-wrap { justify-content: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .squeeze-stand .face.back, .squeeze-stand .handle { transition: none !important; }
+  }
+</style>
+
+<div class="page">
+  <div class="ambient" aria-hidden="true"><span class="g1"></span><span class="g2"></span><span class="g3"></span></div>
+
+  <header class="intro">
+    <span class="kicker">UI 컨셉 목업 · 내부 검토용</span>
+    <h1 class="title">카드 & 베팅 레이아웃</h1>
+    <p>바카라 토너먼트 앱의 카드 뒷면 디자인과 인게임 베팅 화면 목업. 어두운 라운지 톤 위에 골드 라인과 은은한 보랏빛 조명을 더해, 인스파이어 리조트의 야간 돔·디지털 스트리트가 주는 몰입감 있는 분위기를 참고했다.</p>
+    <p class="disclaimer">※ 이 목업은 내부 검토용 디자인 컨셉이며 인스파이어 엔터테인먼트 리조트의 공식 자산이 아니다. 색감과 무드만 참고했을 뿐, 실제 브랜드 로고·상표는 사용하지 않았다.</p>
+  </header>
+
+  <section class="stage">
+    <h2>카드 뒷면</h2>
+    <p class="desc">골드 격자 라인 + 중앙 다이아몬드 엠블럼으로 고급 라운지 느낌을 냈다. 8덱 슈 전체에 동일 패턴을 적용해 셔플·딜링 애니메이션에서도 통일감을 준다.</p>
+    <div class="card-back-row">
+      <div class="pcard lg back"></div>
+      <div class="pcard md back"></div>
+      <div class="pcard sm back"></div>
+      <div class="card-back-notes">
+        <p><b>패턴</b> — 45˚ 교차 골드 라인 격자 + 이중 테두리로 정면에서도 카드 방향이 또렷하게 구분됨</p>
+        <p><b>중앙 엠블럼</b> — 회전된 다이아몬드 형태에 은은한 글로우를 줘 테이블 조명 아래에서도 시선을 끄는 포인트</p>
+        <p><b>색</b> — 딥 인디고/블랙 베이스 + 골드(#D8B15C) 라인, 라운지 조명과 자연스럽게 어울림</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="stage">
+    <h2>인게임 베팅 화면</h2>
+    <p class="desc">매도 스트립 · 딜러 콜 자막 · 테이블 · 메인/사이드 베팅 레일 · 칩 트레이까지, 한 화면에서 라운드를 처음부터 끝까지 진행할 수 있도록 구성했다. 실제 상용 라이브 카지노 UI(원형 베팅 스팟 + 하단 칩 트레이 구조)를 참고했다.</p>
+    <div class="stage-phone-wrap">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+
+            <div class="statusbar">
+              <span>21:04</span>
+              <span class="round-pill">ROUND 4 / 10</span>
+              <span class="live"><i class="dot"></i>128명 접속</span>
+            </div>
+
+            <div class="road-strip" aria-hidden="true">
+              <div class="col"><span class="dot p"></span><span class="dot p"></span></div>
+              <div class="col"><span class="dot b"></span><span class="dot b"></span><span class="dot b"></span></div>
+              <div class="col"><span class="dot p"></span></div>
+              <div class="col"><span class="dot b"></span></div>
+              <div class="col"><span class="dot p"></span><span class="dot p"></span><span class="dot p"></span></div>
+              <div class="col"><span class="dot b"></span></div>
+              <div class="col"><span class="dot p"></span></div>
+            </div>
+
+            <span class="call-caption">"플레이어, 카드 한 장 더"</span>
+
+            <div class="table-felt">
+              <div class="hand player">
+                <span class="hand-label">PLAYER</span>
+                <div class="cards">
+                  <div class="pcard sm front red"><span class="corner tl"><span class="rank">9</span><span class="suit">♦</span></span><span class="pip">♦</span><span class="corner br"><span class="rank">9</span><span class="suit">♦</span></span></div>
+                  <div class="pcard sm back"></div>
+                </div>
+                <span class="total">9</span>
+              </div>
+              <div class="hand banker">
+                <span class="hand-label">BANKER</span>
+                <div class="cards">
+                  <div class="pcard sm back"></div>
+                  <div class="pcard sm back"></div>
+                </div>
+                <span class="total">?</span>
+              </div>
+            </div>
+
+            <div class="bet-rail">
+              <div class="main-spots">
+                <div class="spot player">
+                  <span class="mini-chip stack" style="background:#2A5C99;color:#fff;">10K</span>
+                  <div class="name">PLAYER</div>
+                  <div class="odds">1 : 1</div>
+                </div>
+                <div class="spot tie">
+                  <div class="name">TIE</div>
+                  <div class="odds">1 : 8</div>
+                </div>
+                <div class="spot banker">
+                  <span class="mini-chip stack" style="background:#C1651F;color:#fff;">1M</span>
+                  <div class="name">BANKER</div>
+                  <div class="odds">1 : 0.95</div>
+                </div>
+              </div>
+              <div class="side-spots">
+                <div class="side-spot"><div class="name">PAIR</div><div class="odds">11:1</div></div>
+                <div class="side-spot"><div class="name">뱅커6·2장</div><div class="odds">12:1</div></div>
+                <div class="side-spot"><div class="name">뱅커6·3장</div><div class="odds">20:1</div></div>
+                <div class="side-spot"><div class="name">P7·2장</div><div class="odds">7:1</div></div>
+                <div class="side-spot"><div class="name">P7·3장</div><div class="odds">15:1</div></div>
+                <div class="side-spot"><div class="name">P7&amp;B6</div><div class="odds">~30:1</div></div>
+              </div>
+            </div>
+
+            <div class="chip-tray" aria-hidden="true">
+              <div class="chip" style="background:#C7CDC8;color:#16211C;">1K</div>
+              <div class="chip" style="background:#B23B3B;color:#fff;">5K</div>
+              <div class="chip selected" style="background:#2A5C99;color:#fff;">10K</div>
+              <div class="chip" style="background:#1F6B4A;color:#fff;">50K</div>
+              <div class="chip" style="background:#20211F;color:#fff;">100K</div>
+              <div class="chip" style="background:#6A3F92;color:#fff;">500K</div>
+              <div class="chip" style="background:#C1651F;color:#fff;">1M</div>
+              <div class="chip" style="background:#B8923D;color:#16211C;">10M</div>
+            </div>
+
+            <div class="bottom-bar">
+              <div class="avatar">민</div>
+              <div class="who">
+                <div class="name">민준 · 최고 배팅자</div>
+                <div class="balance">잔액 24,350,000원</div>
+              </div>
+              <button class="cta" type="button">당겨서 쪼기 →</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="stage">
+    <h2>카드 쪼기 데모</h2>
+    <p class="desc">최고 배팅자 화면에서 실제로 벌어지는 동작이다. 카드 하단 모서리의 손잡이를 눌러 안쪽(우상단)으로 드래그해보면, 진행률에 따라 카드가 점점 더 열린다.</p>
+    <div class="squeeze-wrap">
+      <div class="squeeze-stand" id="squeezeCard" style="--p:0;">
+        <div class="face front">
+          <span class="corner tl red"><span class="rank">Q</span><span class="suit">♥</span></span>
+          <span class="pip" style="color:var(--banker);">♥</span>
+          <span class="corner br red"><span class="rank">Q</span><span class="suit">♥</span></span>
+        </div>
+        <div class="face back"></div>
+        <div class="handle" id="squeezeHandle">✋</div>
+      </div>
+      <div class="squeeze-info">
+        <div class="progress-readout" id="squeezeReadout">진행률 0%</div>
+        <div class="bar" style="--p:0;" id="squeezeBar"><span></span></div>
+        <p>0~30%에서는 코너만 살짝 열려 사이드 인덱스만 보이고, 30~100%까지 이어서 드래그하면 무늬 전체가 드러난다. 이 진행률은 실제 서비스에서 다른 참가자에게도 실시간 전송된다.</p>
+        <button class="reset-btn" id="squeezeReset" type="button">다시 덮기</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var card = document.getElementById('squeezeCard');
+  var handle = document.getElementById('squeezeHandle');
+  var readout = document.getElementById('squeezeReadout');
+  var bar = document.getElementById('squeezeBar');
+  var resetBtn = document.getElementById('squeezeReset');
+  var maxDrag = 190;
+  var dragging = false;
+  var startX = 0, startY = 0, startP = 0;
+
+  function setProgress(p) {
+    p = Math.max(0, Math.min(1, p));
+    card.style.setProperty('--p', p);
+    bar.style.setProperty('--p', p);
+    readout.textContent = '진행률 ' + Math.round(p * 100) + '%';
+  }
+
+  function pointerDown(e) {
+    dragging = true;
+    card.classList.add('dragging');
+    startX = e.clientX; startY = e.clientY;
+    startP = parseFloat(getComputedStyle(card).getPropertyValue('--p')) || 0;
+    handle.setPointerCapture(e.pointerId);
+  }
+  function pointerMove(e) {
+    if (!dragging) return;
+    var dx = e.clientX - startX;
+    var dy = startY - e.clientY;
+    var dist = (dx + dy) / 2;
+    setProgress(startP + dist / maxDrag);
+  }
+  function pointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+    var p = parseFloat(getComputedStyle(card).getPropertyValue('--p')) || 0;
+    if (p > 0.94) setProgress(1);
+    else if (p < 0.05) setProgress(0);
+  }
+
+  handle.addEventListener('pointerdown', pointerDown);
+  handle.addEventListener('pointermove', pointerMove);
+  handle.addEventListener('pointerup', pointerUp);
+  handle.addEventListener('pointercancel', pointerUp);
+  resetBtn.addEventListener('click', function () { setProgress(0); });
+})();
+</script>
