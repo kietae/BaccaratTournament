@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const BASE = 'http://localhost:3000';
+const BASE = process.env.VERIFY_BASE_URL || 'http://localhost:3000';
 const SHOT_DIR = path.join(__dirname, 'shots');
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 let shotN = 0;

@@ -27,6 +27,18 @@ npm run lint
 칩 잔액·베팅·라운드 진행 상태가 그대로 유지됨 — 인메모리 상태이므로 서버 재시작 시에는
 복원되지 않는다).
 
+## 배포 (Render)
+
+라이브: https://baccarat-tournament.onrender.com. 저장소 루트의 `../render.yaml`로
+설정되며, `main`에 push하면 자동 재배포된다. Vercel 같은 서버리스 플랫폼은 못 쓴다 —
+Socket.io가 계속 켜져 있는 Node 프로세스를 필요로 하기 때문(자세한 이유는
+`docs/dev-plan.html` §12 참고).
+
+빌드 커맨드가 `npm ci --include=dev`인 이유: Render는 빌드 단계에도
+`NODE_ENV=production`을 주입하는데, npm은 이 값이면 devDependencies를 통째로
+건너뛴다(`@tailwindcss/postcss` 등 빌드에 실제로 필요한 패키지 포함) — `--include=dev`로
+강제로 덮어써야 한다.
+
 ## 디렉터리
 
 - `server.js` — Node HTTP 서버 + Socket.io + Next 요청 핸들러
