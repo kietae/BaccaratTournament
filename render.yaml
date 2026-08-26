@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: baccarat-tournament
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: web
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 20.20.2
+      - key: NODE_ENV
+        value: production
