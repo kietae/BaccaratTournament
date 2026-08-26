@@ -168,8 +168,20 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       state.dragging = true;
       state.target = null;
       state.edge = ne.edge;
-      state.F0 = { x: p.x, y: p.y };
-      state.pointer = { x: p.x, y: p.y };
+      // F0 is anchored to the true card edge on the depth axis (not the raw
+      // touch point, which can land up to startZonePx inside it) — the fold
+      // line is later placed at the midpoint of F0 and the live pointer, so
+      // an unanchored F0 makes that midpoint drift inward of the real edge,
+      // and the reflected flap visibly detaches from the card's own border
+      // instead of curling from it. The tangential coordinate (where along
+      // the edge you grabbed) is kept exactly as touched — only the depth
+      // coordinate snaps.
+      const cfg = EDGE_CFG[ne.edge];
+      const F0: Pt = { x: p.x, y: p.y };
+      if (cfg.axis === 'x') F0.x = ne.edge === 'right' ? W : 0;
+      else F0.y = ne.edge === 'bottom' ? H : 0;
+      state.F0 = F0;
+      state.pointer = { ...F0 };
       try { canvas!.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     }
     function onMove(e: PointerEvent) {

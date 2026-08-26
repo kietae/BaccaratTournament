@@ -199,11 +199,59 @@ function beginSqueezeForCurrentCard(t) {
 const LONG_EDGES = new Set(['left', 'right']);
 const SHORT_EDGES = new Set(['top', 'bottom']);
 
+const PLAYER_SIDE_BET_TYPES = new Set(['player', 'playerPair', 'player7TwoCard', 'player7ThreeCard']);
+const BANKER_SIDE_BET_TYPES = new Set(['banker', 'bankerPair', 'banker6TwoCard', 'banker6ThreeCard']);
+// tie / the combo bet depend on both hands, so either counts as "interest"
+// in both sides.
+const BOTH_SIDE_BET_TYPES = new Set(['tie', 'comboP7B6']);
+
+// Nobody has a stake in a card if nobody bet on that card's side (and
+// nobody bet a both-sides type like tie). If squeezerId is null, this is
+// necessarily true for every card, since pickSqueezer only returns null
+// when every bet total is 0.
+function cardNeedsSqueeze(t, cardEntry) {
+  if (!t.round.squeezerId) return false;
+  const sideTypes = cardEntry.side === 'player' ? PLAYER_SIDE_BET_TYPES : BANKER_SIDE_BET_TYPES;
+  for (const bet of t.round.bets.values()) {
+    for (const [type, amt] of bet.items.entries()) {
+      if (amt <= 0) continue;
+      if (sideTypes.has(type) || BOTH_SIDE_BET_TYPES.has(type)) return true;
+    }
+  }
+  return false;
+}
+
+function advancePastCard(t) {
+  t.round.cardIndex += 1;
+  const next = t.round.cards[t.round.cardIndex];
+  if (next) beginSqueezeForCurrentCard(t);
+  else t.round.phase = 'result-calc';
+  return !next;
+}
+
+// The dealer opens a card directly (no squeeze) when nobody at the table
+// has a bet riding on that side — there's no one to hand the squeeze to,
+// and forcing a squeeze phase with no eligible squeezer would just hang
+// the round forever.
+function autoRevealCard(t) {
+  const current = t.round.cards[t.round.cardIndex];
+  current.revealed = true;
+  current.edge = null;
+  current.pct = 1;
+  const callText = callTextFor(current);
+  t.round.log.push({ type: 'call', text: callText, at: Date.now() });
+  const done = advancePastCard(t);
+  return { current, callText, done };
+}
+
 function squeezeProgress(t, playerId, cardId, edge, pct) {
   if (t.round.squeezerId !== playerId) throw new GameError('쪼기 권한이 없습니다');
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
   if (t.round.phase !== 'squeeze' && t.round.phase !== 'extra-card') throw new GameError('쪼기 단계가 아닙니다');
+  // Nobody bet this side — the dealer is auto-revealing it on a timer, not
+  // waiting on a drag. Reject rather than race the auto-reveal's own advance.
+  if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
   if (!LONG_EDGES.has(edge) && !SHORT_EDGES.has(edge)) throw new GameError('알 수 없는 변');
   current.edge = edge;
   current.pct = Math.max(0, Math.min(1, Number(pct) || 0));
@@ -218,6 +266,7 @@ function squeezeReveal(t, playerId, cardId, edge, pct) {
   if (t.round.squeezerId !== playerId) throw new GameError('쪼기 권한이 없습니다');
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
+  if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
   if (!SHORT_EDGES.has(edge) || (Number(pct) || 0) < 0.55) {
     throw new GameError('짧은 변을 충분히 당겨야 카드가 공개됩니다');
   }
@@ -228,14 +277,8 @@ function squeezeReveal(t, playerId, cardId, edge, pct) {
   const callText = callTextFor(current);
   t.round.log.push({ type: 'call', text: callText, at: Date.now() });
 
-  t.round.cardIndex += 1;
-  const next = t.round.cards[t.round.cardIndex];
-  if (next) {
-    beginSqueezeForCurrentCard(t);
-  } else {
-    t.round.phase = 'result-calc';
-  }
-  return { current, callText, done: !next };
+  const done = advancePastCard(t);
+  return { current, callText, done };
 }
 
 function callTextFor(cardEntry) {
@@ -301,6 +344,7 @@ module.exports = {
   createTournament, addPlayer, playerByToken,
   placeBet, confirmBets, allActivePlayersConfirmed,
   beginDealing, beginSqueezeForCurrentCard,
+  cardNeedsSqueeze, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, startTournament, roundLimitReached,
   currentBetTotal

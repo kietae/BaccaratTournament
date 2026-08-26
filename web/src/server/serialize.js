@@ -1,6 +1,6 @@
 'use strict';
 
-const { bigRoadSnapshot, currentBetTotal } = require('./table');
+const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze } = require('./table');
 
 // The squeezer sees the true rank/suit of ONLY the card currently under
 // their thumb, the instant it becomes active — that's what makes the peel
@@ -8,14 +8,15 @@ const { bigRoadSnapshot, currentBetTotal } = require('./table');
 // for every other viewer including the squeezer themself, stays blind until
 // `entry.revealed` flips server-side (a genuine ≥55%-and-released short-edge
 // squeeze), never from watching the raw squeeze-progress broadcast.
-function cardView(entry, isActiveForSqueezer) {
+function cardView(entry, isActiveForSqueezer, needsSqueeze) {
   const base = {
     cardId: entry.cardId,
     side: entry.side,
     orientation: entry.orientation,
     revealed: entry.revealed,
     edge: entry.edge,
-    pct: entry.pct
+    pct: entry.pct,
+    needsSqueeze
   };
   if (entry.revealed || isActiveForSqueezer) {
     base.rank = entry.card.rank;
@@ -33,6 +34,13 @@ function playerPublicView(p) {
 function buildSnapshot(t, forPlayerId) {
   const round = t.round;
   const players = [...t.players.values()].map(playerPublicView);
+
+  // A socket can end up asking for a playerId that isn't in *this*
+  // tournament (e.g. a stale connection left over from a tournament that
+  // was replaced) — treat that exactly like "no player", never build a
+  // half-populated `me` with missing fields.
+  const mePlayer = forPlayerId ? t.players.get(forPlayerId) : null;
+  if (forPlayerId && !mePlayer) forPlayerId = null;
 
   const myBetEntry = forPlayerId ? round.bets.get(forPlayerId) : null;
   const myBets = myBetEntry ? [...myBetEntry.items.entries()].map(([type, amount]) => ({ type, amount })) : [];
@@ -66,7 +74,9 @@ function buildSnapshot(t, forPlayerId) {
     squeezerId: round.squeezerId,
     squeezerNickname: squeezer ? squeezer.nickname : null,
     isSqueezer: forPlayerId != null && forPlayerId === round.squeezerId,
-    cards: round.cards.map((entry, i) => cardView(entry, iAmSqueezingNow && i === round.cardIndex)),
+    cards: round.cards.map((entry, i) =>
+      cardView(entry, iAmSqueezingNow && i === round.cardIndex, cardNeedsSqueeze(t, entry))
+    ),
     result: round.result && round.cards.every((c) => c.revealed)
       ? {
           outcome: round.result.outcome,
@@ -77,11 +87,11 @@ function buildSnapshot(t, forPlayerId) {
         }
       : null,
     log: round.log,
-    me: forPlayerId
+    me: mePlayer
       ? {
           id: forPlayerId,
-          nickname: t.players.get(forPlayerId)?.nickname,
-          chips: t.players.get(forPlayerId)?.chips,
+          nickname: mePlayer.nickname,
+          chips: mePlayer.chips,
           bets: myBets,
           confirmed: !!(myBetEntry && myBetEntry.confirmed),
           betTotal: currentBetTotal(t, forPlayerId),

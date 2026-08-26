@@ -176,14 +176,22 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
         <CardRow label="뱅커" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} />
       </div>
 
-      {activeCard && (
+      {activeCard && (() => {
+        const iCanSqueezeThisCard = state.isSqueezer && activeCard.needsSqueeze;
+        const statusText = !activeCard.needsSqueeze
+          ? '— 아무도 베팅하지 않아 딜러가 공개합니다'
+          : iCanSqueezeThisCard
+            ? '— 긴 변을 살짝, 짧은 변을 끝까지'
+            : '쪼기 관전 중';
+        return (
         <div className="flex flex-col items-center gap-2 mt-2">
           <p className="text-xs text-zinc-500">
-            {SIDE_LABEL[activeCard.side]} 카드 {state.isSqueezer ? '— 긴 변을 살짝, 짧은 변을 끝까지' : '쪼기 관전 중'}
+            {SIDE_LABEL[activeCard.side]} 카드 {statusText}
           </p>
           <div data-testid="squeeze-stage" className="rounded-xl overflow-hidden shadow-2xl border border-amber-600/30" style={{ width: 220, height: 320 }}>
-            {state.isSqueezer ? (
+            {iCanSqueezeThisCard ? (
               <SqueezeCanvas
+                key={activeCard.cardId}
                 mode="interactive"
                 revealed={activeCard.revealed}
                 rank={activeCard.rank}
@@ -197,6 +205,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
               />
             ) : (
               <SqueezeCanvas
+                key={activeCard.cardId}
                 mode="remote"
                 revealed={activeCard.revealed}
                 rank={activeCard.rank}
@@ -207,7 +216,8 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

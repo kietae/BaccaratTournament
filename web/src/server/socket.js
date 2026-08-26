@@ -7,6 +7,7 @@ const DEALING_MS = 1600;
 const RESULT_CALC_MS = 1800;
 const PAYOUT_MS = 2400;
 const NEXT_ROUND_MS = table.NEXT_ROUND_SECONDS * 1000;
+const AUTO_REVEAL_MS = 900; // pacing between dealer-opened cards nobody bet on
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -48,6 +49,7 @@ function registerSocketServer(io) {
       if (!t) return;
       table.beginSqueezeForCurrentCard(t);
       broadcastState();
+      advanceDealerAutoReveals();
     }, DEALING_MS);
   }
 
@@ -55,6 +57,24 @@ function registerSocketServer(io) {
     if (t && t.round.phase === 'betting-wait' && table.allActivePlayersConfirmed(t)) {
       advanceFromBetting();
     }
+  }
+
+  // Opens, one at a time with a dealer-like pace, every upcoming card that
+  // nobody has a bet riding on — otherwise a card with no eligible squeezer
+  // (nobody bet that side, or nobody bet at all) would hang the round
+  // forever waiting for a squeeze permission nobody has. Stops as soon as
+  // it reaches a card someone actually has a stake in.
+  function advanceDealerAutoReveals() {
+    if (!t) return;
+    const current = t.round.cards[t.round.cardIndex];
+    if (!current || table.cardNeedsSqueeze(t, current)) return;
+    t.timers.autoReveal = setTimeout(() => {
+      if (!t) return;
+      const { done } = table.autoRevealCard(t);
+      broadcastState();
+      if (done) finishRoundAndAdvance();
+      else advanceDealerAutoReveals();
+    }, AUTO_REVEAL_MS);
   }
 
   function finishRoundAndAdvance() {
@@ -182,6 +202,7 @@ function registerSocketServer(io) {
         const { done } = table.squeezeReveal(t, playerId, payload.cardId, payload.edge, payload.pct);
         broadcastState();
         if (done) finishRoundAndAdvance();
+        else advanceDealerAutoReveals();
         ack?.({ ok: true });
       } catch (e) {
         ack?.({ ok: false, error: e.message });
