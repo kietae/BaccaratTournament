@@ -5,17 +5,18 @@ services:
     plan: free
     region: singapore
     rootDir: web
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /
     autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: 20.20.2
-    # NODE_ENV is deliberately NOT set here: Render applies service-level env
-    # vars during `npm install` too, and npm's `omit` config defaults to
-    # "dev" whenever NODE_ENV=production — silently skipping devDependencies
-    # like @tailwindcss/postcss that the build itself needs. Runtime still
-    # gets NODE_ENV=production from package.json's own `start` script
-    # ("NODE_ENV=production node server.js"), which only affects the running
-    # process, not npm install.
+    # Render injects NODE_ENV=production into the build step regardless of
+    # what's declared here (confirmed by an actual failed deploy — removing
+    # our own NODE_ENV envVar didn't help), and npm's `omit` config defaults
+    # to "dev" whenever NODE_ENV=production, silently skipping every
+    # devDependency — including @tailwindcss/postcss, which the build itself
+    # needs. `--include=dev` overrides that unconditionally, regardless of
+    # what's setting the omit default. Runtime still gets NODE_ENV=production
+    # from package.json's own `start` script, unaffected by this flag.
