@@ -196,56 +196,91 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       return { edge, origin, pointer };
     }
 
-    function revealPolygon(edge: Edge, amount: number, skew: number): Pt[] {
-      if (edge === 'bottom') return [{ x: 0, y: height }, { x: width, y: height }, { x: width, y: height - amount + skew }, { x: 0, y: height - amount - skew }];
-      if (edge === 'top') return [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: amount + skew }, { x: 0, y: amount - skew }];
-      if (edge === 'right') return [{ x: width, y: 0 }, { x: width, y: height }, { x: width - amount + skew, y: height }, { x: width - amount - skew, y: 0 }];
-      return [{ x: 0, y: 0 }, { x: 0, y: height }, { x: amount + skew, y: height }, { x: amount - skew, y: 0 }];
-    }
-
-    function foldLine(edge: Edge, amount: number, skew: number): [Pt, Pt] {
-      if (edge === 'bottom') return [{ x: 0, y: height - amount - skew }, { x: width, y: height - amount + skew }];
-      if (edge === 'top') return [{ x: 0, y: amount - skew }, { x: width, y: amount + skew }];
-      if (edge === 'right') return [{ x: width - amount - skew, y: 0 }, { x: width - amount + skew, y: height }];
-      return [{ x: amount - skew, y: 0 }, { x: amount + skew, y: height }];
-    }
-
     function paintPeel(edge: Edge, origin: Pt, pointer: Pt, face: HTMLCanvasElement) {
       const amount = depth(edge, origin, pointer);
       if (amount < 0.5) return;
-      const tangentialDelta = edge === 'left' || edge === 'right' ? pointer.y - origin.y : pointer.x - origin.x;
-      const skew = clamp(tangentialDelta * 0.22, -extentFor(edge, width, height) * 0.1, extentFor(edge, width, height) * 0.1);
-      const polygon = revealPolygon(edge, amount, skew);
+      const vertical = edge === 'left' || edge === 'right';
+      const tangentSize = vertical ? height : width;
+      const tangentOrigin = vertical ? origin.y : origin.x;
+      const tangentPointer = vertical ? pointer.y : pointer.x;
+      const gripCenter = clamp(tangentOrigin + (tangentPointer - tangentOrigin) * 0.45, 0, tangentSize);
+      const spread = tangentSize * (LONG_EDGES.has(edge) ? 0.24 : 0.62);
+      const step = 2;
+      const folds: Pt[] = [];
+      const tips: Pt[] = [];
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(polygon[0].x, polygon[0].y);
-      for (let i = 1; i < polygon.length; i++) ctx.lineTo(polygon[i].x, polygon[i].y);
-      ctx.closePath();
-      if (LONG_EDGES.has(edge)) {
-        ctx.clip();
+      // A squeezed card does not uncover a flat copy of its face. The original
+      // edge moves inward while a fold remains behind it; the visible face is
+      // the mirrored underside between those two curves.
+      for (let tangent = 0; tangent < tangentSize; tangent += step) {
+        const distance = (tangent + step * 0.5 - gripCenter) / Math.max(1, spread);
+        const bell = Math.exp(-0.5 * distance * distance);
+        const influence = LONG_EDGES.has(edge) ? bell : 0.42 + bell * 0.58;
+        const pull = amount * influence;
+        const foldDepth = pull * (0.48 + 0.08 * bell);
+        const tipDepth = pull;
+        if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
+
+        if (edge === 'left' || edge === 'right') {
+          const foldX = edge === 'left' ? foldDepth : width - foldDepth;
+          const tipX = edge === 'left' ? tipDepth : width - tipDepth;
+          const gapX = edge === 'left' ? 0 : foldX;
+          ctx.clearRect(gapX, tangent, foldDepth + 1, step + 1);
+
+          const flapLeft = Math.min(foldX, tipX);
+          const flapWidth = Math.abs(tipX - foldX);
+          const sourceDepth = clamp(foldDepth / width * textureWidth, 1, textureWidth);
+          const sourceX = edge === 'left' ? 0 : textureWidth - sourceDepth;
+          const sourceY = tangent / height * textureHeight;
+          const sourceH = (step + 1) / height * textureHeight;
+          ctx.save();
+          ctx.translate(flapLeft * 2 + flapWidth, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(face, sourceX, sourceY, sourceDepth, sourceH, flapLeft, tangent, flapWidth, step + 1);
+          ctx.restore();
+          folds.push({ x: foldX, y: tangent + step * 0.5 });
+          tips.push({ x: tipX, y: tangent + step * 0.5 });
+        } else {
+          const foldY = edge === 'top' ? foldDepth : height - foldDepth;
+          const tipY = edge === 'top' ? tipDepth : height - tipDepth;
+          const gapY = edge === 'top' ? 0 : foldY;
+          ctx.clearRect(tangent, gapY, step + 1, foldDepth + 1);
+
+          const flapTop = Math.min(foldY, tipY);
+          const flapHeight = Math.abs(tipY - foldY);
+          const sourceDepth = clamp(foldDepth / height * textureHeight, 1, textureHeight);
+          const sourceY = edge === 'top' ? 0 : textureHeight - sourceDepth;
+          const sourceX = tangent / width * textureWidth;
+          const sourceW = (step + 1) / width * textureWidth;
+          ctx.save();
+          ctx.translate(0, flapTop * 2 + flapHeight);
+          ctx.scale(1, -1);
+          ctx.drawImage(face, sourceX, sourceY, sourceW, sourceDepth, tangent, flapTop, step + 1, flapHeight);
+          ctx.restore();
+          folds.push({ x: tangent + step * 0.5, y: foldY });
+          tips.push({ x: tangent + step * 0.5, y: tipY });
+        }
+      }
+
+      function strokeCurve(points: Pt[], color: string, lineWidth: number, blur = 0) {
+        if (points.length < 2) return;
+        ctx.save();
         ctx.beginPath();
-        ctx.rect(0, height * 0.12, width, height * 0.76);
-        ctx.clip();
-      } else ctx.clip();
-      ctx.drawImage(face, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
-      ctx.restore();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.lineWidth = lineWidth;
+        ctx.strokeStyle = color;
+        if (blur) {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+          ctx.shadowBlur = blur;
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
 
-      const [a, b] = foldLine(edge, amount, skew);
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = Math.max(5, Math.min(width, height) * 0.025);
-      ctx.strokeStyle = 'rgba(18, 12, 8, 0.45)';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-      ctx.shadowBlur = 18;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(255, 245, 220, 0.85)';
-      ctx.stroke();
-      ctx.restore();
+      strokeCurve(folds, 'rgba(30, 20, 14, 0.7)', Math.max(3, Math.min(width, height) * 0.018), 14);
+      strokeCurve(folds, 'rgba(255, 247, 225, 0.72)', 1.2);
+      strokeCurve(tips, 'rgba(255, 255, 255, 0.9)', 1.4, 4);
     }
 
     function render() {
