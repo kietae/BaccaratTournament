@@ -5,12 +5,17 @@ services:
     plan: free
     region: singapore
     rootDir: web
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /
     autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: 20.20.2
-      - key: NODE_ENV
-        value: production
+    # NODE_ENV is deliberately NOT set here: Render applies service-level env
+    # vars during `npm install` too, and npm's `omit` config defaults to
+    # "dev" whenever NODE_ENV=production — silently skipping devDependencies
+    # like @tailwindcss/postcss that the build itself needs. Runtime still
+    # gets NODE_ENV=production from package.json's own `start` script
+    # ("NODE_ENV=production node server.js"), which only affects the running
+    # process, not npm install.
