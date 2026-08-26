@@ -61,14 +61,26 @@ export default function PlayPage() {
     }
     socket.on('state', onState);
 
-    ack<{ ok: boolean; error?: string }>('reconnect_player', { token }).then((res) => {
-      if (!res.ok) {
-        localStorage.removeItem(PLAYER_TOKEN_KEY);
-        router.replace('/join');
-      }
-    });
+    // Re-runs on every (re)connect, not just the first — a dropped
+    // connection (screen lock, weak wifi, backgrounding the tab) otherwise
+    // silently un-registers this socket server-side, and this player stops
+    // receiving state updates until they manually reload.
+    function attemptReconnect() {
+      ack<{ ok: boolean; error?: string }>('reconnect_player', { token }).then((res) => {
+        if (!res.ok) {
+          localStorage.removeItem(PLAYER_TOKEN_KEY);
+          router.replace('/join');
+        }
+      });
+    }
+    socket.on('connect', attemptReconnect);
+    if (socket.connected) attemptReconnect();
 
-    return () => { socket.off('state', onState); socket.off('connect_error', onConnectError); };
+    return () => {
+      socket.off('state', onState);
+      socket.off('connect_error', onConnectError);
+      socket.off('connect', attemptReconnect);
+    };
   }, [router]);
 
   if (connError) return <main className="flex-1 flex items-center justify-center p-6 text-red-400">{connError}</main>;

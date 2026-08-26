@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { ack, getSocket, ADMIN_TOKEN_KEY } from '@/lib/socket';
 import type { TableState } from '@/lib/types';
@@ -8,32 +8,42 @@ import { formatKRW } from '@/lib/chips';
 
 export default function AdminPage() {
   const [state, setState] = useState<TableState | null>(null);
-  const [storedToken] = useState<string | null>(() =>
-    typeof window !== 'undefined' ? localStorage.getItem(ADMIN_TOKEN_KEY) : null
-  );
   const [adminToken, setAdminToken] = useState<string | null>(null);
-  const [attaching, setAttaching] = useState(!!storedToken);
+  const [attaching, setAttaching] = useState(true);
   const [qr, setQr] = useState<string | null>(null);
   const [name, setName] = useState('바카라 토너먼트');
   const [initialChips, setInitialChips] = useState(30_000_000);
   const [roundLimit, setRoundLimit] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Source of truth for "which token to (re-)attach with" — a ref, not
+  // state, because it must be read fresh every time the socket reconnects
+  // (screen lock, weak wifi, tab backgrounding all cause this on mobile),
+  // not just once at mount.
+  const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
+    tokenRef.current = localStorage.getItem(ADMIN_TOKEN_KEY);
     const socket = getSocket();
     function onState(s: TableState) { setState(s); }
     socket.on('state', onState);
 
-    if (storedToken) {
-      ack<{ ok: boolean }>('admin:attach', { adminToken: storedToken }).then((res) => {
-        if (res.ok) setAdminToken(storedToken);
-        else localStorage.removeItem(ADMIN_TOKEN_KEY);
+    // Re-runs on every (re)connect, not just the first — otherwise a
+    // dropped connection silently un-registers this socket as the admin,
+    // and the next admin action fails with "권한이 없습니다".
+    function attemptAttach() {
+      const tok = tokenRef.current;
+      if (!tok) { setAttaching(false); return; }
+      ack<{ ok: boolean }>('admin:attach', { adminToken: tok }).then((res) => {
+        if (res.ok) setAdminToken(tok);
+        else { localStorage.removeItem(ADMIN_TOKEN_KEY); tokenRef.current = null; }
         setAttaching(false);
       });
     }
+    socket.on('connect', attemptAttach);
+    if (socket.connected) attemptAttach();
 
-    return () => { socket.off('state', onState); };
-  }, [storedToken]);
+    return () => { socket.off('state', onState); socket.off('connect', attemptAttach); };
+  }, []);
 
   useEffect(() => {
     if (!state?.joinCode) return;
@@ -48,6 +58,7 @@ export default function AdminPage() {
     });
     if (!res.ok || !res.adminToken) { setError(res.error || '생성 실패'); return; }
     localStorage.setItem(ADMIN_TOKEN_KEY, res.adminToken);
+    tokenRef.current = res.adminToken;
     setAdminToken(res.adminToken);
   }
 

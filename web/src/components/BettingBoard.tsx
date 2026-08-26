@@ -30,6 +30,16 @@ export default function BettingBoard({
     onPlaceBet(type, current + chipValue);
   }
 
+  function clearBet(type: BetType) {
+    if (locked) return;
+    onClearBet(type);
+  }
+
+  function clearAll() {
+    if (locked) return;
+    for (const b of me.bets) onClearBet(b.type);
+  }
+
   const mainTypes = BET_TYPES.filter((b) => b.group === 'main');
   const sideTypes = BET_TYPES.filter((b) => b.group === 'side');
 
@@ -44,19 +54,30 @@ export default function BettingBoard({
         {mainTypes.map((bt) => {
           const amt = betsByType.get(bt.type) || 0;
           return (
-            <button
-              key={bt.type}
-              type="button"
-              data-testid={`bet-${bt.type}`}
-              disabled={locked}
-              onClick={() => addChip(bt.type)}
-              onContextMenu={(e) => { e.preventDefault(); if (!locked) onClearBet(bt.type); }}
-              className="flex flex-col items-center justify-center gap-1 rounded-lg border border-amber-500/30 bg-zinc-900/60 py-3 px-1 active:scale-95 transition disabled:opacity-50"
-            >
-              <span className="text-sm font-semibold text-amber-200">{bt.label}</span>
-              <span className="text-[10px] text-zinc-500">{bt.odds}:1</span>
-              <div className="h-6 flex items-center">{amt > 0 && <ChipStack amount={amt} compact />}</div>
-            </button>
+            <div key={bt.type} className="relative">
+              <button
+                type="button"
+                data-testid={`bet-${bt.type}`}
+                disabled={locked}
+                onClick={() => addChip(bt.type)}
+                className="w-full flex flex-col items-center justify-center gap-1 rounded-lg border border-amber-500/30 bg-zinc-900/60 py-3 px-1 active:scale-95 transition disabled:opacity-50"
+              >
+                <span className="text-sm font-semibold text-amber-200">{bt.label}</span>
+                <span className="text-[10px] text-zinc-500">{bt.odds}:1</span>
+                <div className="h-6 flex items-center">{amt > 0 && <ChipStack amount={amt} compact />}</div>
+              </button>
+              {amt > 0 && !locked && (
+                <button
+                  type="button"
+                  aria-label={`${bt.label} 베팅 취소`}
+                  data-testid={`clear-${bt.type}`}
+                  onClick={() => clearBet(bt.type)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[11px] leading-none flex items-center justify-center shadow"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -65,21 +86,32 @@ export default function BettingBoard({
         {sideTypes.map((bt) => {
           const amt = betsByType.get(bt.type) || 0;
           return (
-            <button
-              key={bt.type}
-              type="button"
-              data-testid={`bet-${bt.type}`}
-              disabled={locked}
-              onClick={() => addChip(bt.type)}
-              onContextMenu={(e) => { e.preventDefault(); if (!locked) onClearBet(bt.type); }}
-              className="flex items-center justify-between gap-1 rounded-lg border border-zinc-700 bg-zinc-900/40 py-2 px-2.5 active:scale-95 transition disabled:opacity-50"
-            >
-              <span className="text-left">
-                <span className="block text-xs text-zinc-200">{bt.label}</span>
-                <span className="block text-[10px] text-zinc-500">{bt.odds}:1</span>
-              </span>
-              {amt > 0 && <ChipStack amount={amt} compact />}
-            </button>
+            <div key={bt.type} className="relative">
+              <button
+                type="button"
+                data-testid={`bet-${bt.type}`}
+                disabled={locked}
+                onClick={() => addChip(bt.type)}
+                className="w-full flex items-center justify-between gap-1 rounded-lg border border-zinc-700 bg-zinc-900/40 py-2 px-2.5 active:scale-95 transition disabled:opacity-50"
+              >
+                <span className="text-left">
+                  <span className="block text-xs text-zinc-200">{bt.label}</span>
+                  <span className="block text-[10px] text-zinc-500">{bt.odds}:1</span>
+                </span>
+                {amt > 0 && <ChipStack amount={amt} compact />}
+              </button>
+              {amt > 0 && !locked && (
+                <button
+                  type="button"
+                  aria-label={`${bt.label} 베팅 취소`}
+                  data-testid={`clear-${bt.type}`}
+                  onClick={() => clearBet(bt.type)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[11px] leading-none flex items-center justify-center shadow"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -106,16 +138,27 @@ export default function BettingBoard({
         ))}
       </div>
 
-      <button
-        type="button"
-        data-testid="confirm-bets"
-        disabled={locked || me.confirmed || me.betTotal <= 0}
-        onClick={onConfirm}
-        className="w-full rounded-lg bg-amber-500 text-zinc-950 font-bold py-3 disabled:opacity-40 disabled:bg-zinc-700 disabled:text-zinc-400 active:scale-[0.98] transition"
-      >
-        {me.confirmed ? '확정됨 · 대기 중' : '베팅 확정'}
-      </button>
-      <p className="text-center text-[11px] text-zinc-500">칩을 눌러 베팅 · 길게 눌러 해당 베팅 취소</p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          data-testid="clear-all-bets"
+          disabled={locked || me.confirmed || me.betTotal <= 0}
+          onClick={clearAll}
+          className="rounded-lg border border-zinc-700 text-zinc-300 font-medium px-4 disabled:opacity-40 active:scale-[0.98] transition"
+        >
+          전체 취소
+        </button>
+        <button
+          type="button"
+          data-testid="confirm-bets"
+          disabled={locked || me.confirmed || me.betTotal <= 0}
+          onClick={onConfirm}
+          className="flex-1 rounded-lg bg-amber-500 text-zinc-950 font-bold py-3 disabled:opacity-40 disabled:bg-zinc-700 disabled:text-zinc-400 active:scale-[0.98] transition"
+        >
+          {me.confirmed ? '확정됨 · 대기 중' : '베팅 확정'}
+        </button>
+      </div>
+      <p className="text-center text-[11px] text-zinc-500">칩을 눌러 베팅 · 빨간 × 로 개별 취소 · 전체 취소로 한 번에</p>
     </div>
   );
 }
