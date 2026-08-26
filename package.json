@@ -1,0 +1,9 @@
+{
+  "name": "baccarat-tournament",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal staff-event baccarat tournament app",
+  "scripts": {
+    "test": "node --test engine/test"
+  }
+}
