@@ -9,11 +9,12 @@ const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze } = require('./table'
 // Every other card and every ordinary spectator stay blind until
 // `entry.revealed` flips server-side (a genuine ≥55%-and-released short-edge
 // squeeze), never from watching the raw squeeze-progress broadcast.
-function cardView(entry, canSeeActiveCard, needsSqueeze) {
+function cardView(entry, canSeeActiveCard, needsSqueeze, dealt) {
   const base = {
     cardId: entry.cardId,
     side: entry.side,
     orientation: entry.orientation,
+    dealt,
     revealed: entry.revealed,
     edge: entry.edge,
     pct: entry.pct,
@@ -80,7 +81,7 @@ function buildSnapshot(t, forPlayerId) {
     squeezerNickname: squeezer ? squeezer.nickname : null,
     isSqueezer: forPlayerId != null && forPlayerId === round.squeezerId,
     cards: round.cards.map((entry, i) =>
-      cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry))
+      cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.cardIndex)
     ),
     result: round.result && round.cards.every((c) => c.revealed)
       ? {

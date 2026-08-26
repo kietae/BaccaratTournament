@@ -26,6 +26,7 @@ export interface CardView {
   cardId: string;
   side: 'player' | 'banker';
   orientation: 'vertical' | 'horizontal';
+  dealt: boolean;
   revealed: boolean;
   edge: Edge | null;
   pct: number;

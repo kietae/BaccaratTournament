@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const table = require('../../web/src/server/table');
+const { buildSnapshot } = require('../../web/src/server/serialize');
 const { makeCard } = require('../cards');
 
 function activeTable() {
@@ -48,4 +49,16 @@ test('a disconnected squeezer no longer blocks dealer auto-reveal', () => {
   assert.equal(table.cardNeedsSqueeze(tournament, tournament.round.cards[0]), true);
   player.connected = false;
   assert.equal(table.cardNeedsSqueeze(tournament, tournament.round.cards[0]), false);
+});
+
+test('snapshot only marks cards through the current deal position as dealt', () => {
+  const { tournament } = activeTable();
+  tournament.round.cards.push(
+    { cardId: 'B1', side: 'banker', card: makeCard('6', 'â™£'), orientation: 'vertical', revealed: false, edge: null, pct: 0, grip: 0.5 },
+    { cardId: 'P2', side: 'player', card: makeCard('K', 'â™¥'), orientation: 'vertical', revealed: false, edge: null, pct: 0, grip: 0.5 },
+    { cardId: 'P3', side: 'player', card: makeCard('3', 'â™ '), orientation: 'horizontal', revealed: false, edge: null, pct: 0, grip: 0.5 }
+  );
+  tournament.round.cardIndex = 1;
+  const snapshot = buildSnapshot(tournament, null);
+  assert.deepEqual(snapshot.cards.map((card) => card.dealt), [true, true, false, false]);
 });

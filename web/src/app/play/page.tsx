@@ -6,7 +6,7 @@ import { ack, getSocket, PLAYER_TOKEN_KEY } from '@/lib/socket';
 import type { BetType, CardView, Edge, TableState } from '@/lib/types';
 import BettingBoard from '@/components/BettingBoard';
 import BigRoadGrid from '@/components/BigRoadGrid';
-import CardSlot from '@/components/CardSlot';
+import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
 import SqueezeCanvas from '@/components/SqueezeCanvas';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
@@ -225,13 +225,17 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
 }
 
 function CardRow({ label, cards, activeId }: { label: string; cards: CardView[]; activeId?: string }) {
+  const side = cards[0]?.side;
+  const prefix = side === 'banker' ? 'B' : 'P';
+  const slots = [1, 2, 3].map((number) => cards.find((card) => card.cardId === `${prefix}${number}`));
   return (
     <div className="flex flex-col items-center gap-2">
       <span className="text-[11px] text-zinc-500">{label}</span>
-      <div className="flex gap-1.5">
-        {cards.map((c) => (
-          <CardSlot key={c.cardId} card={c} dim={c.cardId === activeId} />
-        ))}
+      <div className="flex gap-1.5 items-center">
+        {slots.map((card, index) => card?.dealt
+          ? <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId} />
+          : <EmptyCardSlot key={`${prefix}${index + 1}-empty`} orientation={index === 2 ? 'horizontal' : 'vertical'} />
+        )}
       </div>
     </div>
   );

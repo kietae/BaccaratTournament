@@ -33,7 +33,7 @@ export default function CardSlot({ card, dim }: { card: CardView; dim?: boolean 
   const rotated = card.orientation === 'horizontal';
   return (
     <div
-      className="relative rounded-md overflow-visible"
+      className="relative rounded-md overflow-visible card-deal-in"
       style={{ width: rotated ? 64 : 44, height: rotated ? 44 : 64, opacity: dim ? 0.4 : 1, transition: 'opacity 0.2s' }}
     >
       <div
@@ -49,5 +49,16 @@ export default function CardSlot({ card, dim }: { card: CardView; dim?: boolean 
         <canvas ref={ref} style={{ width: 44, height: 64, display: 'block' }} />
       </div>
     </div>
+  );
+}
+
+export function EmptyCardSlot({ orientation = 'vertical' }: { orientation?: CardView['orientation'] }) {
+  const rotated = orientation === 'horizontal';
+  return (
+    <div
+      aria-hidden="true"
+      className="rounded-md border border-dashed border-emerald-100/20 bg-black/10 shadow-inner"
+      style={{ width: rotated ? 64 : 44, height: rotated ? 44 : 64 }}
+    />
   );
 }

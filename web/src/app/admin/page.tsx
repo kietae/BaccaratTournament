@@ -6,7 +6,7 @@ import { ack, getSocket, ADMIN_TOKEN_KEY } from '@/lib/socket';
 import type { CardView, TableState } from '@/lib/types';
 import { formatKRW } from '@/lib/chips';
 import BigRoadGrid from '@/components/BigRoadGrid';
-import CardSlot from '@/components/CardSlot';
+import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
 import SqueezeCanvas from '@/components/SqueezeCanvas';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
@@ -129,7 +129,11 @@ function TableStage({ state, activeCard }: { state: TableState; activeCard: Card
   </section>;
 }
 
-function AdminCardRow({ label, cards, activeId }: { label: string; cards: CardView[]; activeId?: string }) { return <div className="flex flex-col items-center gap-2"><span className="text-xs font-bold tracking-[0.2em] text-amber-200">{label}</span><div className="flex gap-2">{cards.map((card) => <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId} />)}</div></div>; }
+function AdminCardRow({ label, cards, activeId }: { label: string; cards: CardView[]; activeId?: string }) {
+  const prefix = label === 'BANKER' ? 'B' : 'P';
+  const slots = [1, 2, 3].map((number) => cards.find((card) => card.cardId === `${prefix}${number}`));
+  return <div className="flex flex-col items-center gap-2"><span className="text-xs font-bold tracking-[0.2em] text-amber-200">{label}</span><div className="flex gap-2 items-center">{slots.map((card, index) => card?.dealt ? <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId} /> : <EmptyCardSlot key={`${prefix}${index + 1}-empty`} orientation={index === 2 ? 'horizontal' : 'vertical'} />)}</div></div>;
+}
 
 function Leaderboard({ state, title }: { state: TableState; title: string }) {
   const ranked = useMemo(() => [...state.players].sort((a, b) => b.chips - a.chips || a.nickname.localeCompare(b.nickname, 'ko')), [state.players]);
