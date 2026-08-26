@@ -1,0 +1,35 @@
+# 바카라 토너먼트 — 웹 앱
+
+Next.js(App Router) + Socket.io 실시간 서버. 게임 규칙/사이드벳 정산은 루트의
+[`../engine`](../engine) 모듈(순수 함수, 자동화된 테스트 포함)을 그대로 사용한다.
+
+## 개발 서버 실행
+
+Socket.io를 Next.js와 같은 HTTP 서버에 붙이는 커스텀 서버(`server.js`)를 쓰므로
+`next dev`가 아니라 아래 스크립트로 실행한다.
+
+```bash
+npm install
+npm run dev      # http://localhost:3000, 개발 모드
+npm run build    # 프로덕션 빌드
+npm start        # 프로덕션 서버 실행
+npm run lint
+```
+
+## 사용 흐름
+
+1. `/admin` — 토너먼트 생성(초기 칩, 라운드 수) → 입장 코드/QR 발급 → "토너먼트 시작"
+2. `/join?code=...` — 참가자가 QR을 스캔하거나 코드를 입력하고 닉네임으로 입장
+3. `/play` — 베팅 → 딜링 → 쪼기(최고 배팅자만 조작, 나머지는 관전) → 정산 → 다음 라운드가
+   자동으로 반복된다
+
+재접속은 `localStorage`에 저장된 참가자 토큰으로 복원된다(서버 프로세스가 살아있는 동안
+칩 잔액·베팅·라운드 진행 상태가 그대로 유지됨 — 인메모리 상태이므로 서버 재시작 시에는
+복원되지 않는다).
+
+## 디렉터리
+
+- `server.js` — Node HTTP 서버 + Socket.io + Next 요청 핸들러
+- `src/server/` — 게임 테이블 상태 머신(순수 CommonJS, Next 번들러를 거치지 않음)
+- `src/app/` — 페이지(admin/join/play)
+- `src/components/SqueezeCanvas.tsx` — 쪼기 제스처 렌더링 엔진(Canvas 2D, 정확 반사 기하)
