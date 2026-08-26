@@ -26,6 +26,35 @@ const PIP_LAYOUTS: Record<string, Pt[]> = {
 
 const FACE_RANKS = new Set(['J', 'Q', 'K']);
 
+type AssetRecord = { image: HTMLImageElement; ready: boolean; listeners: Set<() => void> };
+const assetCache = new Map<string, AssetRecord>();
+const SUIT_CODE: Record<string, string> = { '♣': 'C', '♦': 'D', '♥': 'H', '♠': 'S' };
+
+function asset(path: string, onReady?: () => void): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  let record = assetCache.get(path);
+  if (!record) {
+    const image = new Image();
+    record = { image, ready: false, listeners: new Set() };
+    assetCache.set(path, record);
+    image.onload = () => {
+      record!.ready = true;
+      for (const listener of record!.listeners) listener();
+      record!.listeners.clear();
+    };
+    image.onerror = () => record!.listeners.clear();
+    image.decoding = 'async';
+    image.src = path;
+  }
+  if (!record.ready && onReady) record.listeners.add(onReady);
+  return record.ready ? record.image : null;
+}
+
+function cardAssetPath(rank: string, suit: string) {
+  const rankCode = rank === '10' ? 'T' : rank;
+  return `/cards/${rankCode}${SUIT_CODE[suit]}.svg`;
+}
+
 function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath();
   c.moveTo(x + r, y);
@@ -40,7 +69,12 @@ export function suitColor(suit: string): string {
   return suit === '♥' || suit === '♦' ? '#B23B3B' : '#1a1a1a';
 }
 
-export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string) {
+export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string, onReady?: () => void) {
+  const image = asset(cardAssetPath(rank, suit), onReady);
+  if (image) {
+    c.drawImage(image, 0, 0, w, h);
+    return;
+  }
   c.fillStyle = '#FBF9F4';
   c.fillRect(0, 0, w, h);
   c.strokeStyle = 'rgba(0,0,0,0.15)';
@@ -98,7 +132,12 @@ export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number,
   for (const [fx, fy] of layout) pip(fx, fy);
 }
 
-export function drawCardBack(c: CanvasRenderingContext2D, w: number, h: number) {
+export function drawCardBack(c: CanvasRenderingContext2D, w: number, h: number, onReady?: () => void) {
+  const image = asset('/cards/Back.svg', onReady);
+  if (image) {
+    c.drawImage(image, 0, 0, w, h);
+    return;
+  }
   const g = c.createLinearGradient(0, 0, w, h);
   g.addColorStop(0, '#241a3d');
   g.addColorStop(1, '#0c0a15');

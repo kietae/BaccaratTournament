@@ -18,11 +18,16 @@ export default function CardSlot({ card, dim }: { card: CardView; dim?: boolean 
     const w = Math.max(1, rect.width), h = Math.max(1, rect.height);
     canvas.width = w * dpr;
     canvas.height = h * dpr;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    const ctx = context;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (card.revealed && card.rank && card.suit) drawCardFront(ctx, w, h, card.rank, card.suit);
-    else drawCardBack(ctx, w, h);
+    function paint() {
+      ctx.clearRect(0, 0, w, h);
+      if (card.revealed && card.rank && card.suit) drawCardFront(ctx, w, h, card.rank, card.suit, paint);
+      else drawCardBack(ctx, w, h, paint);
+    }
+    paint();
   }, [card.revealed, card.rank, card.suit]);
 
   const rotated = card.orientation === 'horizontal';

@@ -182,6 +182,7 @@ function beginDealing(t) {
     c.revealed = false;
     c.edge = null;
     c.pct = 0;
+    c.grip = 0.5;
   });
   t.round.cards = cards;
   t.round.cardIndex = 0;
@@ -211,6 +212,8 @@ const BOTH_SIDE_BET_TYPES = new Set(['tie', 'comboP7B6']);
 // when every bet total is 0.
 function cardNeedsSqueeze(t, cardEntry) {
   if (!t.round.squeezerId) return false;
+  const squeezer = t.players.get(t.round.squeezerId);
+  if (!squeezer || !squeezer.connected) return false;
   const sideTypes = cardEntry.side === 'player' ? PLAYER_SIDE_BET_TYPES : BANKER_SIDE_BET_TYPES;
   for (const bet of t.round.bets.values()) {
     for (const [type, amt] of bet.items.entries()) {
@@ -244,7 +247,7 @@ function autoRevealCard(t) {
   return { current, callText, done };
 }
 
-function squeezeProgress(t, playerId, cardId, edge, pct) {
+function squeezeProgress(t, playerId, cardId, edge, pct, grip) {
   if (t.round.squeezerId !== playerId) throw new GameError('쪼기 권한이 없습니다');
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
@@ -255,6 +258,7 @@ function squeezeProgress(t, playerId, cardId, edge, pct) {
   if (!LONG_EDGES.has(edge) && !SHORT_EDGES.has(edge)) throw new GameError('알 수 없는 변');
   current.edge = edge;
   current.pct = Math.max(0, Math.min(1, Number(pct) || 0));
+  current.grip = Math.max(0.08, Math.min(0.92, Number(grip) || 0.5));
   return current;
 }
 
@@ -262,7 +266,7 @@ function squeezeProgress(t, playerId, cardId, edge, pct) {
 // explicitly rather than trusting the last throttled squeezeProgress
 // broadcast, which can lag a fast release by a frame or two and reject an
 // otherwise-valid reveal.
-function squeezeReveal(t, playerId, cardId, edge, pct) {
+function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
   if (t.round.squeezerId !== playerId) throw new GameError('쪼기 권한이 없습니다');
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
@@ -272,6 +276,7 @@ function squeezeReveal(t, playerId, cardId, edge, pct) {
   }
   current.edge = edge;
   current.pct = Math.max(0, Math.min(1, Number(pct) || 0));
+  current.grip = Math.max(0.08, Math.min(0.92, Number(grip) || 0.5));
   current.revealed = true;
 
   const callText = callTextFor(current);

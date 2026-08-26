@@ -29,6 +29,7 @@ export interface CardView {
   revealed: boolean;
   edge: Edge | null;
   pct: number;
+  grip: number;
   needsSqueeze: boolean;
   rank?: string;
   suit?: string;

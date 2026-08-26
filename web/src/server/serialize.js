@@ -4,11 +4,12 @@ const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze } = require('./table'
 
 // The squeezer sees the true rank/suit of ONLY the card currently under
 // their thumb, the instant it becomes active — that's what makes the peel
-// meaningful (they're rendering real pips as they drag). Every other card,
-// for every other viewer including the squeezer themself, stays blind until
+// meaningful (they're rendering real pips as they drag). The admin view also
+// receives that one active face so it can act as the trusted projector feed.
+// Every other card and every ordinary spectator stay blind until
 // `entry.revealed` flips server-side (a genuine ≥55%-and-released short-edge
 // squeeze), never from watching the raw squeeze-progress broadcast.
-function cardView(entry, isActiveForSqueezer, needsSqueeze) {
+function cardView(entry, canSeeActiveCard, needsSqueeze) {
   const base = {
     cardId: entry.cardId,
     side: entry.side,
@@ -16,9 +17,10 @@ function cardView(entry, isActiveForSqueezer, needsSqueeze) {
     revealed: entry.revealed,
     edge: entry.edge,
     pct: entry.pct,
+    grip: entry.grip,
     needsSqueeze
   };
-  if (entry.revealed || isActiveForSqueezer) {
+  if (entry.revealed || canSeeActiveCard) {
     base.rank = entry.card.rank;
     base.suit = entry.card.suit;
   }
@@ -51,6 +53,9 @@ function buildSnapshot(t, forPlayerId) {
     forPlayerId != null &&
     forPlayerId === round.squeezerId &&
     (round.phase === 'squeeze' || round.phase === 'extra-card');
+  const adminCanPresentActiveCard =
+    forPlayerId == null &&
+    (round.phase === 'squeeze' || round.phase === 'extra-card');
 
   let totalPot = 0;
   for (const bet of round.bets.values()) {
@@ -75,7 +80,7 @@ function buildSnapshot(t, forPlayerId) {
     squeezerNickname: squeezer ? squeezer.nickname : null,
     isSqueezer: forPlayerId != null && forPlayerId === round.squeezerId,
     cards: round.cards.map((entry, i) =>
-      cardView(entry, iAmSqueezingNow && i === round.cardIndex, cardNeedsSqueeze(t, entry))
+      cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry))
     ),
     result: round.result && round.cards.every((c) => c.revealed)
       ? {

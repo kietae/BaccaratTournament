@@ -196,11 +196,12 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
                 revealed={activeCard.revealed}
                 rank={activeCard.rank}
                 suit={activeCard.suit}
-                onProgress={(edge: Edge, pct: number) => {
-                  getSocket().emit('squeezeProgress', { cardId: activeCard.cardId, edge, pct });
+                onProgress={(edge: Edge, pct: number, grip: number) => {
+                  getSocket().emit('squeezeProgress', { cardId: activeCard.cardId, edge, pct, grip });
                 }}
-                onRelease={(edge: Edge, pct: number, willReveal: boolean) => {
-                  if (willReveal) ack('squeezeRelease', { cardId: activeCard.cardId, edge, pct });
+                onRelease={(edge: Edge, pct: number, willReveal: boolean, grip: number) => {
+                  if (willReveal) ack('squeezeRelease', { cardId: activeCard.cardId, edge, pct, grip });
+                  else getSocket().emit('squeezeProgress', { cardId: activeCard.cardId, edge, pct: 0, grip });
                 }}
               />
             ) : (
@@ -212,6 +213,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
                 suit={activeCard.suit}
                 remoteEdge={activeCard.edge}
                 remotePct={activeCard.pct}
+                remoteGrip={activeCard.grip}
               />
             )}
           </div>

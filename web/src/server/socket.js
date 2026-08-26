@@ -103,6 +103,13 @@ function registerSocketServer(io) {
 
   io.on('connection', (socket) => {
     socket.on('admin:create', (payload, ack) => {
+      if (t && t.status === 'active' && !adminSockets.has(socket.id)) {
+        ack?.({ ok: false, error: '진행 중인 토너먼트는 기존 관리자만 변경할 수 있습니다' });
+        return;
+      }
+      clearTimers();
+      socketPlayer.clear();
+      adminSockets.clear();
       t = table.createTournament(payload || {});
       adminSockets.add(socket.id);
       ack?.({ ok: true, adminToken: t.adminToken, joinCode: t.joinCode });
@@ -188,7 +195,7 @@ function registerSocketServer(io) {
       const playerId = socketPlayer.get(socket.id);
       if (!t || !playerId || !payload) return;
       try {
-        table.squeezeProgress(t, playerId, payload.cardId, payload.edge, payload.pct);
+        table.squeezeProgress(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
         broadcastState();
       } catch {
         // Silently drop invalid/out-of-turn progress events (e.g. late frames after reveal).
@@ -199,7 +206,7 @@ function registerSocketServer(io) {
       const playerId = socketPlayer.get(socket.id);
       if (!t || !playerId || !payload) { ack?.({ ok: false }); return; }
       try {
-        const { done } = table.squeezeReveal(t, playerId, payload.cardId, payload.edge, payload.pct);
+        const { done } = table.squeezeReveal(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
         broadcastState();
         if (done) finishRoundAndAdvance();
         else advanceDealerAutoReveals();
@@ -218,6 +225,10 @@ function registerSocketServer(io) {
           player.connected = false;
           player.socketId = null;
           broadcastState();
+          if (playerId === t.round.squeezerId &&
+              (t.round.phase === 'squeeze' || t.round.phase === 'extra-card')) {
+            advanceDealerAutoReveals();
+          }
         }
       }
       socketPlayer.delete(socket.id);

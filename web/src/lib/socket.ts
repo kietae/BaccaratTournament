@@ -19,7 +19,18 @@ export function ack<T = { ok: boolean; error?: string; [key: string]: unknown }>
   payload: unknown
 ): Promise<T> {
   return new Promise((resolve) => {
-    getSocket().emit(event, payload, (res: T) => resolve(res));
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: false, error: '서버 응답이 없습니다. 연결을 확인해 주세요.' } as T);
+    }, 8000);
+    getSocket().emit(event, payload, (res: T) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(res);
+    });
   });
 }
 
