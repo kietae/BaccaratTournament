@@ -10,7 +10,7 @@ const SQUEEZE_SETTLE_MS = 100;
 const RESULT_CALC_MS = 1800;
 const PAYOUT_MS = 2400;
 const NEXT_ROUND_MS = table.NEXT_ROUND_SECONDS * 1000;
-const AUTO_REVEAL_MS = 900; // pacing between dealer-opened cards nobody bet on
+const AUTO_REVEAL_MS = 1050; // dealer peel animation before an unbacked card opens
 const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
 const HAND_CALL_MS = 1500; // leave room for the spoken hand total / result
 const SQUEEZE_REVEAL_FRAC = 0.94;
@@ -85,12 +85,27 @@ function registerSocketServer(io) {
     if (!t) return;
     const current = t.round.cards[t.round.cardIndex];
     if (!current || table.cardNeedsSqueeze(t, current)) return;
-    t.timers.autoReveal = setTimeout(() => {
-      if (!t) return;
-      const { done } = table.autoRevealCard(t);
+    current.edge = 'right';
+    current.grip = 0.5;
+    current.pct = 0;
+    const startedAt = Date.now();
+    const animateDealerPeel = () => {
+      if (!t || t.round.cards[t.round.cardIndex] !== current) return;
+      const elapsed = Date.now() - startedAt;
+      current.pct = Math.min(SQUEEZE_REVEAL_FRAC, (elapsed / AUTO_REVEAL_MS) * SQUEEZE_REVEAL_FRAC);
       broadcastState();
-      advanceAfterReveal(done);
-    }, AUTO_REVEAL_MS);
+      if (current.pct < SQUEEZE_REVEAL_FRAC) {
+        t.timers.autoReveal = setTimeout(animateDealerPeel, 70);
+        return;
+      }
+      t.timers.autoReveal = setTimeout(() => {
+        if (!t) return;
+        const { done } = table.autoRevealCard(t);
+        broadcastState();
+        advanceAfterReveal(done);
+      }, 140);
+    };
+    t.timers.autoReveal = setTimeout(animateDealerPeel, 70);
   }
 
   function advanceAfterReveal(done) {
@@ -250,7 +265,7 @@ function registerSocketServer(io) {
       if (!t || !playerId || !payload) { ack?.({ ok: false }); return; }
       try {
         if (t.timers.squeezeReveal) { ack?.({ ok: false }); return; }
-        if ((Number(payload.pct) || 0) < SQUEEZE_REVEAL_FRAC) { ack?.({ ok: false, error: '카드를 70% 이상 열어야 공개됩니다' }); return; }
+        if ((Number(payload.pct) || 0) < SQUEEZE_REVEAL_FRAC) { ack?.({ ok: false, error: '카드를 94% 이상 열어야 공개됩니다' }); return; }
         // Hold the fully squeezed pose for one beat before flipping the card.
         table.squeezeProgress(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
         broadcastState();

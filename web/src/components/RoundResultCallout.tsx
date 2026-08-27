@@ -3,7 +3,7 @@
 import type { RoundResultView } from '@/lib/types';
 
 export default function RoundResultCallout({ result, large = false }: { result: RoundResultView; large?: boolean }) {
-  const winner = result.outcome === 'tie' ? '타이' : result.outcome === 'player' ? '플레이어 승' : '뱅커 승';
+  const winner = result.outcome === 'tie' ? 'Tie!' : result.outcome === 'player' ? 'Player Wins!' : 'Banker Wins!';
   const tone = result.outcome === 'player' ? 'result-player' : result.outcome === 'banker' ? 'result-banker' : 'result-tie';
   return (
     <div data-testid="round-result-callout" className={`result-callout ${tone} ${large ? 'result-callout-large' : ''}`}>

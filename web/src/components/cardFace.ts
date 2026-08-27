@@ -28,6 +28,7 @@ const FACE_RANKS = new Set(['J', 'Q', 'K']);
 
 type AssetRecord = { image: HTMLImageElement; ready: boolean; listeners: Set<() => void> };
 const assetCache = new Map<string, AssetRecord>();
+const SUIT_CODE: Record<string, string> = { '♣': 'C', '♦': 'D', '♥': 'H', '♠': 'S' };
 
 function asset(path: string, onReady?: () => void): HTMLImageElement | null {
   if (typeof Image === 'undefined') return null;
@@ -49,6 +50,11 @@ function asset(path: string, onReady?: () => void): HTMLImageElement | null {
   return record.ready ? record.image : null;
 }
 
+function cardAssetPath(rank: string, suit: string) {
+  const rankCode = rank === '10' ? 'T' : rank;
+  return `/cards/${rankCode}${SUIT_CODE[suit]}.svg`;
+}
+
 function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath();
   c.moveTo(x + r, y);
@@ -63,7 +69,12 @@ export function suitColor(suit: string): string {
   return suit === '♥' || suit === '♦' ? '#B23B3B' : '#1a1a1a';
 }
 
-export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string) {
+export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string, onReady?: () => void) {
+  const image = asset(cardAssetPath(rank, suit), onReady);
+  if (image) {
+    c.drawImage(image, 0, 0, w, h);
+    return;
+  }
   c.fillStyle = '#FBF9F4';
   c.fillRect(0, 0, w, h);
   c.strokeStyle = 'rgba(0,0,0,0.15)';

@@ -7,7 +7,7 @@ const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze } = require('./table'
 // meaningful (they're rendering real pips as they drag). The admin view also
 // receives that one active face so it can act as the trusted projector feed.
 // Every other card and every ordinary spectator stay blind until
-// `entry.revealed` flips server-side (a genuine ≥55%-and-released short-edge
+// `entry.revealed` flips server-side (a genuine ≥94%-and-released
 // squeeze), never from watching the raw squeeze-progress broadcast.
 function cardView(entry, canSeeActiveCard, needsSqueeze, dealt) {
   const base = {
@@ -59,8 +59,19 @@ function buildSnapshot(t, forPlayerId) {
     (round.phase === 'squeeze' || round.phase === 'extra-card');
 
   let totalPot = 0;
+  const mainBetSummary = {
+    player: { bettors: 0, amount: 0 },
+    banker: { bettors: 0, amount: 0 }
+  };
   for (const bet of round.bets.values()) {
     for (const amt of bet.items.values()) totalPot += amt;
+    for (const side of ['player', 'banker']) {
+      const amount = Number(bet.items.get(side)) || 0;
+      if (amount > 0) {
+        mainBetSummary[side].bettors += 1;
+        mainBetSummary[side].amount += amount;
+      }
+    }
   }
 
   return {
@@ -77,6 +88,7 @@ function buildSnapshot(t, forPlayerId) {
     playerCount: players.length,
     bigRoad: bigRoadSnapshot(t),
     totalPot,
+    mainBetSummary,
     squeezerId: round.squeezerId,
     squeezerNickname: squeezer ? squeezer.nickname : null,
     isSqueezer: forPlayerId != null && forPlayerId === round.squeezerId,

@@ -134,7 +134,10 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
     function onDown(event: PointerEvent) {
       const current = propsRef.current;
-      if (current.mode !== 'interactive' || current.revealed) return;
+      // Never let the active player peel a placeholder texture. The server
+      // sends the true face with squeeze authority; waiting for it guarantees
+      // that every visible pip belongs to the card eventually revealed.
+      if (current.mode !== 'interactive' || current.revealed || !current.rank || !current.suit) return;
       const point = localPoint(event);
       const [edge, distance] = nearestEdge(point);
       if (distance > startZone) return;
@@ -219,7 +222,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const tangentOrigin = vertical ? origin.y : origin.x;
       const tangentPointer = vertical ? pointer.y : pointer.x;
       const gripCenter = clamp(tangentOrigin + (tangentPointer - tangentOrigin) * 0.45, 0, tangentSize);
-      const spread = tangentSize * (LONG_EDGES.has(edge) ? 0.24 : 0.62);
+      const spread = tangentSize * (LONG_EDGES.has(edge) ? 0.42 : 0.68);
       const step = 2;
       const folds: Pt[] = [];
       const tips: Pt[] = [];
@@ -230,7 +233,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         // A long edge advances as one stiff line; otherwise its middle races
         // ahead of both corners like a rubber sheet. Short edges retain a
         // softer curve for the final peel.
-        const influence = LONG_EDGES.has(edge) ? 1 : 0.6 + bell * 0.4;
+        const influence = LONG_EDGES.has(edge) ? 0.82 + bell * 0.18 : 0.58 + bell * 0.42;
         return { pull: amount * influence, bell };
       }
 
@@ -239,7 +242,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // fold. This is a material mapping, not a stationary window into the face.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
-        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.78 : 0.76 + 0.04 * bell);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.54 + 0.08 * bell : 0.52 + 0.12 * bell);
         const tipDepth = pull;
         if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
 
@@ -251,7 +254,10 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
           const flapLeft = Math.min(foldX, tipX);
           const flapWidth = Math.abs(tipX - foldX);
-          const sourceDepth = clamp(foldDepth / width * textureWidth, 1, textureWidth);
+          // Baccarat edge reads must expose only the outer pip column. If the
+          // source strip reaches the centre column, A/2/3 can falsely resemble
+          // the three-side 6/7/8 group before the 94% reveal threshold.
+          const sourceDepth = clamp(Math.min(foldDepth / width, 0.4) * textureWidth, 1, textureWidth);
           const sourceX = edge === 'left' ? 0 : textureWidth - sourceDepth;
           const sourceH = (step + 1) / height * textureHeight;
           // Reverse the other axis as well: a one-axis fold is a mirror,
@@ -273,7 +279,9 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
           const flapTop = Math.min(foldY, tipY);
           const flapHeight = Math.abs(tipY - foldY);
-          const sourceDepth = clamp(foldDepth / height * textureHeight, 1, textureHeight);
+          // Likewise, keep a short-edge read above the centre row. The full
+          // card replaces the peel only after the server accepts a 94% reveal.
+          const sourceDepth = clamp(Math.min(foldDepth / height, 0.4) * textureHeight, 1, textureHeight);
           const sourceY = edge === 'top' ? 0 : textureHeight - sourceDepth;
           const sourceW = (step + 1) / width * textureWidth;
           const sourceX = clamp(textureWidth - (tangent / width * textureWidth) - sourceW, 0, textureWidth - sourceW);
@@ -321,7 +329,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
       function drawThumb(tangent: number, thumbAngle: number) {
         const { pull, bell } = pullAt(tangent);
-        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.78 : 0.76 + 0.04 * bell);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.54 + 0.08 * bell : 0.52 + 0.12 * bell);
         // Keep the thumb pad on the flap itself, between the crease and the
         // moving edge. Bias toward the edge so it still covers the index.
         const thumbDepth = foldDepth + (pull - foldDepth) * 0.72;
@@ -394,7 +402,10 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if ((current.rank && current.rank !== lastRank) || (current.suit && current.suit !== lastSuit)) {
         const front = frontTexture.getContext('2d')!;
         front.clearRect(0, 0, textureWidth, textureHeight);
-        drawCardFront(front, textureWidth, textureHeight, current.rank!, current.suit!);
+        drawCardFront(front, textureWidth, textureHeight, current.rank!, current.suit!, () => {
+          lastRank = '';
+          lastSuit = '';
+        });
         lastRank = current.rank!;
         lastSuit = current.suit!;
       }

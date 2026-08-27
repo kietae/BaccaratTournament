@@ -145,7 +145,8 @@ body {
 .rotate-phone { font-size: 4.5rem; line-height: 1; animation: rotate-phone 1.8s ease-in-out infinite alternate; }
 
 @media (orientation: landscape) {
-  .play-shell { max-width: 64rem !important; padding: 0.35rem 0.75rem 0.5rem; gap: 0.35rem; }
+  .play-shell { max-width: 64rem !important; height: 100dvh; overflow: hidden; padding: 0.35rem 0.75rem 0.5rem; gap: 0.35rem; }
+  .squeeze-stage { width: min(22vw, 220px); max-height: calc(100dvh - 6.5rem); }
   .play-road { display: none; }
   .betting-board { gap: 0.3rem; }
   .betting-zones { grid-template-columns: 1.25fr 0.5fr 1.25fr; }

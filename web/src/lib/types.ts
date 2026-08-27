@@ -106,6 +106,10 @@ export interface TableState {
   playerCount: number;
   bigRoad: BigRoad;
   totalPot: number;
+  mainBetSummary: {
+    player: { bettors: number; amount: number };
+    banker: { bettors: number; amount: number };
+  };
   squeezerId: string | null;
   squeezerNickname: string | null;
   isSqueezer: boolean;

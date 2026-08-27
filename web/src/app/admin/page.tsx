@@ -68,20 +68,26 @@ export default function AdminPage() {
     const latest = state?.log[state.log.length - 1];
     if (!latest || latest.at <= lastSpokenAt.current || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     lastSpokenAt.current = latest.at;
-    const isBetCall = latest.text === 'BET DOWN PLEASE';
-    const spoken = latest.text;
+    const spoken = latest.text
+      .replace('플레이어 원 모어 카드', 'Player, one more card')
+      .replace('뱅커 원 모어 카드', 'Banker, one more card')
+      .replace('플레이어 윈', 'Player wins')
+      .replace('뱅커 윈', 'Banker wins')
+      .replace(/^타이$/, 'Tie');
     const utterance = new SpeechSynthesisUtterance(spoken);
-    utterance.lang = isBetCall ? 'en-US' : 'ko-KR';
-    utterance.rate = latest.tone === 'winner' ? 0.96 : 0.9;
-    utterance.pitch = latest.tone === 'winner' ? 1.3 : 1.08;
-    const language = isBetCall ? 'en' : 'ko';
-    const matchingVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith(language));
-    utterance.voice = matchingVoices.find((voice) => /sunhi|heami|yuna|zira|samantha|female|여성/i.test(voice.name)) ?? matchingVoices[0] ?? null;
+    utterance.lang = 'en-US';
+    utterance.rate = 0.92;
+    utterance.pitch = 1;
+    const englishVoices = window.speechSynthesis.getVoices().filter((voice) => /^en(?:-|_)/i.test(voice.lang));
+    utterance.voice = englishVoices.find((voice) => /aria|jenny|samantha|zira/i.test(voice.name)) ?? englishVoices[0] ?? null;
     activeUtterance.current = utterance;
     utterance.onend = () => { if (activeUtterance.current === utterance) activeUtterance.current = null; };
+    utterance.onerror = () => { if (activeUtterance.current === utterance) activeUtterance.current = null; };
     window.speechSynthesis.cancel();
     window.speechSynthesis.resume();
-    window.speechSynthesis.speak(utterance);
+    window.setTimeout(() => {
+      if (activeUtterance.current === utterance) window.speechSynthesis.speak(utterance);
+    }, 60);
   }, [state?.log]);
 
   useEffect(() => {
@@ -163,10 +169,11 @@ export default function AdminPage() {
     </main>
   );
 
-  return <main className={`flex-1 w-full mx-auto p-4 lg:p-6 ${presentation ? 'max-w-none' : 'max-w-7xl'}`}>
-    <header className="flex items-center justify-between gap-4 border-b border-amber-500/20 pb-4 mb-5">
+  const roundsRemaining = state.roundLimit == null ? null : Math.max(0, state.roundLimit - state.roundNo);
+  return <main className={`flex-1 w-full mx-auto p-3 lg:p-4 ${state.status === 'active' ? 'h-[100dvh] overflow-hidden flex flex-col' : ''} ${presentation ? 'max-w-none' : 'max-w-7xl'}`}>
+    <header className="flex items-center justify-between gap-4 border-b border-amber-500/20 pb-2 mb-3 shrink-0">
       <div><p className="text-xs tracking-[0.24em] text-amber-500 uppercase">Live Tournament</p><h1 className="text-xl lg:text-3xl font-bold text-amber-100">{state.tournamentName}</h1></div>
-      <div className="flex items-center gap-3"><div className="text-right"><div className="font-mono text-amber-300">ROUND {state.roundNo}{state.roundLimit ? ` / ${state.roundLimit}` : ''}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
+      <div className="flex items-center gap-3"><div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
     </header>
     {state.status === 'lobby' ? <Lobby state={state} qr={qr} onStart={startTournament} error={error} /> : state.status === 'finished' ? <FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} /> : <LiveDashboard state={state} />}
   </main>;
@@ -190,30 +197,43 @@ function Lobby({ state, qr, onStart, error }: { state: TableState; qr: string | 
 }
 
 function LiveDashboard({ state }: { state: TableState }) {
-  const activeCard = state.cards.find((card) => !card.revealed) ?? null;
-  return <div className="grid xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,0.75fr)] gap-5"><div className="flex flex-col gap-5 min-w-0">
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 lg:p-5"><div className="flex items-center justify-between mb-3"><h2 className="font-semibold text-zinc-200">바카라 매</h2><span className="text-sm text-zinc-500">총 베팅 {formatKRW(state.totalPot)}</span></div><BigRoadGrid road={state.bigRoad} /></section>
+  const activeCard = state.cards.find((card) => card.dealt && !card.revealed) ?? null;
+  const mainBets = state.mainBetSummary ?? { player: { bettors: 0, amount: 0 }, banker: { bettors: 0, amount: 0 } };
+  return <div className="flex-1 min-h-0 grid grid-rows-[minmax(130px,30vh)_minmax(0,1fr)] gap-3">
+    <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-3 min-h-0">
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 min-w-0 overflow-hidden"><div className="flex items-center justify-between gap-3 mb-2"><h2 className="font-semibold text-zinc-200 shrink-0">바카라 매</h2><div className="flex items-center gap-2 text-xs tabular-nums"><span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-blue-200">PLAYER {mainBets.player.bettors}명 · {formatKRW(mainBets.player.amount)}</span><span className="rounded-full border border-red-400/25 bg-red-500/10 px-2.5 py-1 text-red-200">BANKER {mainBets.banker.bettors}명 · {formatKRW(mainBets.banker.amount)}</span><span className="text-zinc-500">총 {formatKRW(state.totalPot)}</span></div></div><BigRoadGrid road={state.bigRoad} /></section>
+      <Leaderboard state={state} title="실시간 리더보드" limit={5} />
+    </div>
     <TableStage state={state} activeCard={activeCard} />
-  </div><Leaderboard state={state} title="실시간 리더보드" /></div>;
+  </div>;
 }
 
 function TableStage({ state, activeCard }: { state: TableState; activeCard: CardView | null }) {
   const resultVisible = state.result && ['result-calc', 'payout', 'next-round'].includes(state.phase);
-  const squeezeVisible = activeCard && (state.phase === 'squeeze' || state.phase === 'extra-card');
-  return <section className="rounded-3xl border border-emerald-700/30 bg-[radial-gradient(circle_at_top,#16543d,#08251a_70%)] p-5 lg:p-8 min-h-[520px] shadow-2xl flex flex-col">
-    <div data-testid={resultVisible ? 'result-hands' : undefined} className="flex justify-center gap-10 lg:gap-20"><AdminCardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={resultVisible ? 1.4 : 1} /><AdminCardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={resultVisible ? 1.4 : 1} /></div>
-    <div className="flex-1 flex items-center justify-center py-5">{state.phase === 'third-card-call' || state.phase === 'dealer-call' ? <div className="text-center animate-pulse"><p className="text-sm tracking-[0.3em] text-amber-300">DEALER CALL</p><p className="mt-3 text-4xl lg:text-6xl font-black text-white drop-shadow-[0_0_24px_rgba(251,191,36,0.55)]">{state.log[state.log.length - 1]?.text}</p></div> : squeezeVisible ? <div className="flex flex-col items-center gap-3"><div className="text-center"><p className="text-xs tracking-[0.2em] text-amber-400 uppercase">Live Squeeze</p><p className="text-lg font-bold text-white">{state.squeezerNickname ?? '딜러'} · {activeCard.side === 'player' ? '플레이어' : '뱅커'} {activeCard.cardId.slice(-1)}번째 카드</p></div><div data-testid="admin-squeeze-stage" className="w-[240px] h-[350px] lg:w-[280px] lg:h-[405px] rounded-2xl overflow-hidden border border-amber-400/40 shadow-[0_24px_70px_rgba(0,0,0,0.55)]"><SqueezeCanvas key={activeCard.cardId} mode="remote" revealed={activeCard.revealed} rank={activeCard.rank} suit={activeCard.suit} remoteEdge={activeCard.edge} remotePct={activeCard.pct} remoteGrip={activeCard.grip} /></div></div> : resultVisible && state.result ? <div data-testid="admin-round-result"><RoundResultCallout result={state.result} large /></div> : <div className="text-center text-emerald-100/70"><div className="text-3xl font-bold">{PHASE_LABEL[state.phase]}</div><p className="mt-2 text-sm">참가자 {state.playerCount}명 · 연결 {state.players.filter((p) => p.connected).length}명</p></div>}</div>
+  const squeezeVisible = activeCard && activeCard.needsSqueeze && (state.phase === 'squeeze' || state.phase === 'extra-card');
+  return <section className="rounded-3xl border border-emerald-700/30 bg-[radial-gradient(circle_at_top,#16543d,#08251a_70%)] p-3 min-h-0 overflow-hidden shadow-2xl grid grid-cols-[minmax(150px,1fr)_minmax(220px,1.25fr)_minmax(150px,1fr)] items-center gap-4">
+    <AdminCardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={1.5} />
+    <div data-testid={resultVisible ? 'result-hands' : undefined} className="min-h-0 h-full flex items-center justify-center">{state.phase === 'third-card-call' || state.phase === 'dealer-call' ? <div className="text-center animate-pulse"><p className="text-sm tracking-[0.3em] text-amber-300">DEALER CALL</p><p className="mt-3 text-4xl lg:text-5xl font-black text-white drop-shadow-[0_0_24px_rgba(251,191,36,0.55)]">{state.log[state.log.length - 1]?.text}</p></div> : squeezeVisible ? <div className="h-full flex flex-col items-center justify-center gap-2"><div className="text-center"><p className="text-xs tracking-[0.2em] text-amber-400 uppercase">Live Squeeze</p><p className="text-sm font-bold text-white">{state.squeezerNickname ?? '딜러'} · {activeCard.side === 'player' ? '플레이어' : '뱅커'} {activeCard.cardId.slice(-1)}번째 카드</p></div><div data-testid="admin-squeeze-stage" className="h-[calc(100%-3rem)] max-h-[43vh] aspect-[11/16] rounded-2xl overflow-hidden border border-amber-400/40 shadow-[0_24px_70px_rgba(0,0,0,0.55)]"><SqueezeCanvas key={activeCard.cardId} mode="remote" revealed={activeCard.revealed} rank={activeCard.rank} suit={activeCard.suit} remoteEdge={activeCard.edge} remotePct={activeCard.pct} remoteGrip={activeCard.grip} /></div></div> : resultVisible && state.result ? <div data-testid="admin-round-result"><RoundResultCallout result={state.result} large /></div> : <div className="text-center text-emerald-100/70"><div className="text-3xl font-bold">{PHASE_LABEL[state.phase]}</div><p className="mt-2 text-sm">참가자 {state.playerCount}명 · 연결 {state.players.filter((p) => p.connected).length}명</p></div>}</div>
+    <AdminCardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={1.5} />
   </section>;
 }
 
 function AdminCardRow({ label, cards, activeId, scale = 1 }: { label: string; cards: CardView[]; activeId?: string; scale?: number }) {
   const prefix = label === 'BANKER' ? 'B' : 'P';
   const slots = [1, 2, 3].map((number) => cards.find((card) => card.cardId === `${prefix}${number}`));
-  return <div className="flex flex-col items-center gap-2"><span className="text-xs font-bold tracking-[0.2em] text-amber-200">{label}</span><div className="flex gap-2 items-center">{slots.map((card, index) => card?.dealt ? <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId} scale={scale} /> : <EmptyCardSlot key={`${prefix}${index + 1}-empty`} orientation={index === 2 ? 'horizontal' : 'vertical'} />)}</div></div>;
+  const revealed = cards.filter((card) => card.dealt && card.revealed && card.rank);
+  const total = revealed.length > 0
+    ? revealed.reduce((sum, card) => sum + (card.rank === 'A' ? 1 : ['10', 'J', 'Q', 'K'].includes(card.rank!) ? 0 : Number(card.rank)), 0) % 10
+    : null;
+  return <div className="flex flex-col items-center gap-2"><div className="text-center"><div className="text-3xl lg:text-4xl font-black tabular-nums text-white drop-shadow-[0_0_18px_rgba(251,191,36,0.35)]">{total ?? '–'}</div><span className="text-xs font-bold tracking-[0.2em] text-amber-200">{label}</span></div><div className="grid grid-cols-2 gap-2 items-center justify-items-center">{slots.map((card, index) => <div key={`${prefix}-admin-${index}`} className={index === 2 ? 'col-span-2' : ''}>{card?.dealt ? <CardSlot card={card} dim={card.cardId === activeId && card.needsSqueeze} scale={scale} /> : <EmptyCardSlot orientation={index === 2 ? 'horizontal' : 'vertical'} scale={scale} />}</div>)}</div></div>;
 }
 
-function Leaderboard({ state, title }: { state: TableState; title: string }) {
-  const ranked = useMemo(() => [...state.players].sort((a, b) => b.chips - a.chips || a.nickname.localeCompare(b.nickname, 'ko')), [state.players]);
+function Leaderboard({ state, title, limit }: { state: TableState; title: string; limit?: number }) {
+  const ranked = useMemo(() => state.players
+    .map((player, joinedOrder) => ({ player, joinedOrder }))
+    .sort((a, b) => b.player.chips - a.player.chips || a.joinedOrder - b.joinedOrder)
+    .slice(0, limit ?? state.players.length)
+    .map(({ player }) => player), [state.players, limit]);
   return <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 lg:p-5 min-h-0"><div className="flex items-center justify-between mb-3"><h2 className="font-semibold text-zinc-200">{title}</h2><span className="text-xs text-zinc-500">연결 {state.players.filter((p) => p.connected).length}/{state.playerCount}</span></div><div data-testid="leaderboard" className="space-y-1 max-h-[70vh] overflow-y-auto pr-1">{ranked.map((player, index) => <div key={player.id} className={`grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2 ${index < 3 ? 'bg-amber-400/10 border border-amber-400/15' : 'bg-black/20'}`}><span className={`font-mono font-black ${index === 0 ? 'text-amber-300' : 'text-zinc-500'}`}>{index + 1}</span><span className="truncate text-zinc-100"><span className={`inline-block w-2 h-2 rounded-full mr-2 ${player.connected ? 'bg-emerald-400' : 'bg-zinc-600'}`} />{player.nickname}</span><span className="font-mono text-sm text-zinc-300 tabular-nums">{formatKRW(player.chips)}</span></div>)}{ranked.length === 0 && <p className="py-10 text-center text-zinc-600">참가자를 기다리는 중입니다</p>}</div></section>;
 }
 

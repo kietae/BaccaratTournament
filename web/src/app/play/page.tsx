@@ -104,7 +104,7 @@ export default function PlayPage() {
     await orientation.lock?.('landscape').catch(() => undefined);
   }
 
-  const activeCard = state.cards.find((c) => !c.revealed) || null;
+  const activeCard = state.cards.find((c) => c.dealt && !c.revealed) || null;
   const isSqueezingPhase = state.phase === 'squeeze' || state.phase === 'extra-card';
   const isCardCallPhase = state.phase === 'dealer-call' || state.phase === 'third-card-call';
 
@@ -115,7 +115,7 @@ export default function PlayPage() {
       <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">토너먼트 게임은 가로모드 전용입니다.</p></div>
       <button type="button" onClick={enterLandscape} className="rounded-xl bg-amber-400 px-6 py-3 font-black text-zinc-950 active:scale-[0.98]">가로모드로 전환</button>
     </div>
-    <main className="play-shell flex-1 flex flex-col gap-3 p-3 pb-6 max-w-md mx-auto w-full">
+    <main className="play-shell h-[100dvh] overflow-hidden flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
       <TopBar state={state} />
       <div className="play-road"><BigRoadGrid road={state.bigRoad} /></div>
 
@@ -209,29 +209,20 @@ const SIDE_LABEL: Record<CardView['side'], string> = { player: '플레이어', b
 
 function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: CardView | null }) {
   return (
-    <div className="flex-1 flex flex-col gap-4">
+    <div className="flex-1 min-h-0 flex flex-col gap-1">
       <p className="text-center text-sm text-zinc-400">
-        {state.squeezerNickname ? `이번 판 쪼기: ${state.squeezerNickname}` : '쪼기 대상 없음'}
+        {state.squeezerNickname && activeCard
+          ? `${SIDE_LABEL[activeCard.side]} 최대 베팅: ${state.squeezerNickname}`
+          : '최대 베팅 참가자 없음'}
       </p>
-
-      <div className="flex justify-center gap-6">
-        <CardRow label="플레이어" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} />
-        <CardRow label="뱅커" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} />
-      </div>
 
       {activeCard && (() => {
         const iCanSqueezeThisCard = state.isSqueezer && activeCard.needsSqueeze;
-        const statusText = !activeCard.needsSqueeze
-          ? '— 아무도 베팅하지 않아 딜러가 공개합니다'
-          : iCanSqueezeThisCard
-            ? '— 어느 변이든 끝까지 열면 공개'
-            : '쪼기 관전 중';
         return (
-        <div className="flex flex-col items-center gap-2 mt-2">
-          <p className="text-xs text-zinc-500">
-            {SIDE_LABEL[activeCard.side]} 카드 {statusText}
-          </p>
-          <div data-testid="squeeze-stage" className="rounded-xl overflow-hidden shadow-2xl border border-amber-600/30" style={{ width: 220, height: 320 }}>
+        <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(150px,220px)_minmax(92px,1fr)] items-center gap-2">
+          <CardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={1.5} showTotal />
+          <div className="flex flex-col items-center gap-1 min-h-0">
+          {activeCard.needsSqueeze ? <div data-testid="squeeze-stage" className="squeeze-stage rounded-xl overflow-hidden shadow-2xl border border-amber-600/30 w-full aspect-[11/16] max-h-[calc(100dvh-6.5rem)]">
             {iCanSqueezeThisCard ? (
               <SqueezeCanvas
                 key={activeCard.cardId}
@@ -259,7 +250,9 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
                 remoteGrip={activeCard.grip}
               />
             )}
+          </div> : <div className="text-center text-sm text-amber-100/70">딜러 오픈</div>}
           </div>
+          <CardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={1.5} showTotal />
         </div>
         );
       })()}
@@ -267,19 +260,24 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
   );
 }
 
-function CardRow({ label, cards, activeId }: { label: string; cards: CardView[]; activeId?: string }) {
+function CardRow({ label, cards, activeId, scale = 1, showTotal = false }: { label: string; cards: CardView[]; activeId?: string; scale?: number; showTotal?: boolean }) {
   const side = cards[0]?.side;
   const prefix = side === 'banker' ? 'B' : 'P';
   const slots = [1, 2, 3].map((number) => cards.find((card) => card.cardId === `${prefix}${number}`));
+  const revealed = cards.filter((card) => card.dealt && card.revealed && card.rank);
+  const total = revealed.length > 0
+    ? revealed.reduce((sum, card) => sum + (card.rank === 'A' ? 1 : ['10', 'J', 'Q', 'K'].includes(card.rank!) ? 0 : Number(card.rank)), 0) % 10
+    : null;
   return (
     <div className="flex flex-col items-center gap-2">
       <span className="text-[11px] text-zinc-500">{label}</span>
-      <div className="flex gap-1.5 items-center">
-        {slots.map((card, index) => card?.dealt
-          ? <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId} />
-          : <EmptyCardSlot key={`${prefix}${index + 1}-empty`} orientation={index === 2 ? 'horizontal' : 'vertical'} />
-        )}
+      <div className="grid grid-cols-2 gap-1.5 items-center justify-items-center">
+        {slots.map((card, index) => <div key={`${prefix}-slot-${index}`} className={index === 2 ? 'col-span-2' : ''}>{card?.dealt
+          ? <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId && card.needsSqueeze} scale={scale} />
+          : <EmptyCardSlot key={`${prefix}${index + 1}-empty`} orientation={index === 2 ? 'horizontal' : 'vertical'} scale={scale} />
+        }</div>)}
       </div>
+      {showTotal && <div className="text-4xl font-black tabular-nums text-white drop-shadow-[0_0_18px_rgba(251,191,36,0.45)]">{total ?? '–'}</div>}
     </div>
   );
 }

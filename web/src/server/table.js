@@ -224,13 +224,13 @@ function initialTotal(t, side) {
 }
 
 function outcomeCall(result) {
-  return result.outcome === 'player' ? '플레이어 윈' : result.outcome === 'banker' ? '뱅커 윈' : '타이';
+  return result.outcome === 'player' ? 'Player wins' : result.outcome === 'banker' ? 'Banker wins' : 'Tie';
 }
 
 function beginHandCall(t, side, finishesRound = false) {
   const total = initialTotal(t, side);
-  const sideLabel = side === 'player' ? '플레이어' : '뱅커';
-  const qualifier = total >= 8 ? ' 내추럴' : side === 'player' && total >= 6 ? ' 스탠즈 온' : side === 'banker' && total === 7 ? ' 스탠즈 온' : '';
+  const sideLabel = side === 'player' ? 'Player' : 'Banker';
+  const qualifier = total >= 8 ? ' natural' : side === 'player' && total >= 6 ? ' stands on' : side === 'banker' && total === 7 ? ' stands on' : '';
   t.round.phase = 'dealer-call';
   t.round.callNextAction = finishesRound ? 'finish' : 'continue';
   const resultCall = finishesRound ? `. ${outcomeCall(t.round.result)}` : '';
@@ -239,7 +239,7 @@ function beginHandCall(t, side, finishesRound = false) {
 
 function beginThirdTotalCall(t, side, finishesRound) {
   const total = t.round.result[side === 'player' ? 'playerTotal' : 'bankerTotal'];
-  const sideLabel = side === 'player' ? '플레이어' : '뱅커';
+  const sideLabel = side === 'player' ? 'Player' : 'Banker';
   t.round.phase = 'dealer-call';
   t.round.callNextAction = finishesRound ? 'finish' : 'continue';
   const resultCall = finishesRound ? `. ${outcomeCall(t.round.result)}` : '';
@@ -261,9 +261,9 @@ function completeDealerCall(t) {
 }
 
 function callThirdCard(t, cardEntry) {
-  const sideLabel = cardEntry.side === 'player' ? '플레이어' : '뱅커';
+  const sideLabel = cardEntry.side === 'player' ? 'Player' : 'Banker';
   t.round.phase = 'third-card-call';
-  t.round.log.push({ type: 'call', text: `${sideLabel} 원 모어 카드`, at: Date.now() });
+  t.round.log.push({ type: 'call', text: `${sideLabel}, one more card`, at: Date.now() });
 }
 
 function dealCalledThirdCard(t) {
