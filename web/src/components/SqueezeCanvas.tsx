@@ -315,10 +315,11 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
       function drawThumb(tangent: number, thumbAngle: number) {
         const tipNormal = pullAt(tangent).pull;
+        const shortEdgeInset = vertical ? 0 : thumbWidth * 0.3;
         const thumbTip = edge === 'left' ? { x: tipNormal, y: tangent }
           : edge === 'right' ? { x: width - tipNormal, y: tangent }
-            : edge === 'top' ? { x: tangent, y: tipNormal }
-              : { x: tangent, y: height - tipNormal };
+            : edge === 'top' ? { x: tangent, y: tipNormal + shortEdgeInset }
+              : { x: tangent, y: height - tipNormal - shortEdgeInset };
         ctx.save();
         ctx.translate(thumbTip.x, thumbTip.y);
         ctx.rotate(thumbAngle);
