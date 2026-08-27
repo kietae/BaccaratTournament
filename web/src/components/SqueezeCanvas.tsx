@@ -60,6 +60,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     }
     paintBackTexture();
     drawMystery(mysteryTexture.getContext('2d')!, textureWidth, textureHeight);
+    const thumbImage = new Image();
+    thumbImage.src = '/ui/thumb.png';
 
     function paintSqueezeFaceTexture() {
       const squeezeContext = squeezeFaceTexture.getContext('2d')!;
@@ -326,7 +328,11 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const thumbLength = clamp(Math.min(width, height) * 0.19, 35, 54);
       const thumbWidth = thumbLength * 0.7;
       const inwardOffset = thumbLength * 0.18;
-      const cornerInset = clamp(tangentSize * 0.12, thumbWidth * 0.72, tangentSize * 0.18);
+      // On a short edge the thumbs spread toward the outer corners. On a long
+      // edge they sit farther inward, over the vertically inset card indices.
+      const cornerInset = LONG_EDGES.has(edge)
+        ? clamp(tangentSize * 0.18, thumbWidth * 0.9, tangentSize * 0.24)
+        : clamp(tangentSize * 0.07, thumbWidth * 0.52, tangentSize * 0.11);
 
       function drawThumb(tangent: number) {
         const tipNormal = pullAt(tangent).pull;
@@ -340,6 +346,24 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           thumbTip.y - Math.sin(normalAngle) * inwardOffset
         );
         ctx.rotate(normalAngle);
+        if (thumbImage.complete && thumbImage.naturalWidth > 0) {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 7;
+          ctx.shadowOffsetY = 3;
+          // The source thumb points right: its fingertip overlaps the card
+          // while the joint extends naturally out beyond the lifted edge.
+          ctx.drawImage(
+            thumbImage,
+            -thumbLength * 1.6,
+            -thumbWidth * 0.9,
+            thumbLength * 2.05,
+            thumbWidth * 1.8
+          );
+          ctx.restore();
+          return;
+        }
+
+        // Lightweight fallback while the photographic sprite is loading.
         ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
         ctx.shadowBlur = 13;
         ctx.shadowOffsetY = 4;
