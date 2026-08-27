@@ -7,7 +7,7 @@ import type { Edge } from '@/lib/types';
 interface Pt { x: number; y: number; }
 
 const LONG_EDGES = new Set<Edge>(['left', 'right']);
-const LONG_EDGE_CAP_FRAC = 0.4;
+const LONG_EDGE_CAP_FRAC = 0.68;
 const SHORT_EDGE_REVEAL_FRAC = 0.55;
 
 export interface SqueezeCanvasProps {
@@ -240,10 +240,10 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       function pullAt(tangent: number) {
         const distance = (tangent - gripCenter) / Math.max(1, spread);
         const bell = Math.exp(-0.5 * distance * distance);
-        // Playing cards are stiff: pulling one point bends the whole edge.
-        // Keep a meaningful baseline at both corners instead of letting the
-        // Gaussian fall to zero (which looked like stretching a rubber sheet).
-        const influence = LONG_EDGES.has(edge) ? 0.38 + bell * 0.62 : 0.6 + bell * 0.4;
+        // A long edge advances as one stiff line; otherwise its middle races
+        // ahead of both corners like a rubber sheet. Short edges retain a
+        // softer curve for the final peel.
+        const influence = LONG_EDGES.has(edge) ? 1 : 0.6 + bell * 0.4;
         return { pull: amount * influence, bell };
       }
 
@@ -253,7 +253,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // ranks readable instead of mirroring the artwork itself.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
-        const foldDepth = pull * (0.48 + 0.08 * bell);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.48 + 0.08 * bell);
         const tipDepth = pull;
         if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
 
