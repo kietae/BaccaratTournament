@@ -310,6 +310,56 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       strokeCurve(folds, 'rgba(30, 20, 14, 0.7)', Math.max(3, Math.min(width, height) * 0.018), 14);
       strokeCurve(folds, 'rgba(255, 247, 225, 0.72)', 1.2);
       strokeCurve(tips, 'rgba(255, 255, 255, 0.9)', 1.4, 4);
+
+      // A virtual thumb follows the grip just as a player covers the printed
+      // corner index while squeezing a physical baccarat card. It is drawn
+      // last so it genuinely occludes the bent face in both local and remote
+      // (projector) views.
+      const tipNormal = amount;
+      const thumbTip = edge === 'left' ? { x: tipNormal, y: gripCenter }
+        : edge === 'right' ? { x: width - tipNormal, y: gripCenter }
+          : edge === 'top' ? { x: gripCenter, y: tipNormal }
+            : { x: gripCenter, y: height - tipNormal };
+      const normalAngle = edge === 'left' ? 0
+        : edge === 'right' ? Math.PI
+          : edge === 'top' ? Math.PI / 2
+            : -Math.PI / 2;
+      const thumbLength = clamp(Math.min(width, height) * 0.19, 35, 54);
+      const thumbWidth = thumbLength * 0.7;
+      const inwardOffset = thumbLength * 0.18;
+
+      ctx.save();
+      ctx.translate(
+        thumbTip.x - Math.cos(normalAngle) * inwardOffset,
+        thumbTip.y - Math.sin(normalAngle) * inwardOffset
+      );
+      ctx.rotate(normalAngle);
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+      ctx.shadowBlur = 13;
+      ctx.shadowOffsetY = 4;
+      const skin = ctx.createRadialGradient(-thumbLength * 0.14, -thumbWidth * 0.2, 2, 0, 0, thumbLength * 0.62);
+      skin.addColorStop(0, '#f3c6a6');
+      skin.addColorStop(0.55, '#d99a75');
+      skin.addColorStop(1, '#9f6048');
+      ctx.fillStyle = skin;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, thumbLength * 0.58, thumbWidth * 0.58, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(92, 48, 36, 0.7)';
+      ctx.stroke();
+
+      // Nail on the outer half of the thumb gives a readable orientation at
+      // phone size without requiring a photographic hand asset.
+      ctx.fillStyle = 'rgba(255, 221, 205, 0.82)';
+      ctx.beginPath();
+      ctx.ellipse(-thumbLength * 0.14, 0, thumbLength * 0.27, thumbWidth * 0.34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 0.9;
+      ctx.strokeStyle = 'rgba(142, 82, 66, 0.55)';
+      ctx.stroke();
+      ctx.restore();
     }
 
     function render() {
