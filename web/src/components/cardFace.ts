@@ -133,7 +133,7 @@ export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number,
 }
 
 export function drawCardBack(c: CanvasRenderingContext2D, w: number, h: number, onReady?: () => void) {
-  const image = asset('/cards/Back.svg', onReady);
+  const image = asset('/cards/Back.svg?v=inspire-1', onReady);
   if (image) {
     c.drawImage(image, 0, 0, w, h);
     return;
