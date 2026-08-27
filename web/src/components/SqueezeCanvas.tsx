@@ -220,7 +220,6 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const step = 2;
       const folds: Pt[] = [];
       const tips: Pt[] = [];
-      const flapPath = new Path2D();
 
       function pullAt(tangent: number) {
         const distance = (tangent - gripCenter) / Math.max(1, spread);
@@ -232,9 +231,9 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         return { pull: amount * influence, bell };
       }
 
-      // Build the whole bent-face mask first. The front artwork is painted once
-      // in stable card coordinates after the loop, so pips do not stretch or
-      // slide independently as the fold deepens.
+      // Map only the physical edge strip onto the flap. The grabbed original
+      // edge lands at the moving tip while the inner artwork stays beside the
+      // fold. This is a material mapping, not a stationary window into the face.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
         const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.48 + 0.08 * bell);
@@ -249,7 +248,15 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
           const flapLeft = Math.min(foldX, tipX);
           const flapWidth = Math.abs(tipX - foldX);
-          flapPath.rect(flapLeft, tangent, flapWidth, step + 1);
+          const sourceDepth = clamp(foldDepth / width * textureWidth, 1, textureWidth);
+          const sourceX = edge === 'left' ? 0 : textureWidth - sourceDepth;
+          const sourceY = tangent / height * textureHeight;
+          const sourceH = (step + 1) / height * textureHeight;
+          ctx.save();
+          ctx.translate(flapLeft * 2 + flapWidth, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(face, sourceX, sourceY, sourceDepth, sourceH, flapLeft, tangent, flapWidth, step + 1);
+          ctx.restore();
           folds.push({ x: foldX, y: tangent + step * 0.5 });
           tips.push({ x: tipX, y: tangent + step * 0.5 });
         } else {
@@ -260,16 +267,19 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
           const flapTop = Math.min(foldY, tipY);
           const flapHeight = Math.abs(tipY - foldY);
-          flapPath.rect(tangent, flapTop, step + 1, flapHeight);
+          const sourceDepth = clamp(foldDepth / height * textureHeight, 1, textureHeight);
+          const sourceY = edge === 'top' ? 0 : textureHeight - sourceDepth;
+          const sourceX = tangent / width * textureWidth;
+          const sourceW = (step + 1) / width * textureWidth;
+          ctx.save();
+          ctx.translate(0, flapTop * 2 + flapHeight);
+          ctx.scale(1, -1);
+          ctx.drawImage(face, sourceX, sourceY, sourceW, sourceDepth, tangent, flapTop, step + 1, flapHeight);
+          ctx.restore();
           folds.push({ x: tangent + step * 0.5, y: foldY });
           tips.push({ x: tangent + step * 0.5, y: tipY });
         }
       }
-
-      ctx.save();
-      ctx.clip(flapPath);
-      ctx.drawImage(face, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
-      ctx.restore();
 
       function strokeCurve(points: Pt[], color: string, lineWidth: number, blur = 0) {
         if (points.length < 2) return;
