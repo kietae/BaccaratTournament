@@ -20,6 +20,7 @@ export interface SqueezeCanvasProps {
   remoteEdge?: Edge | null;
   remotePct?: number;
   remoteGrip?: number;
+  showThumbs?: boolean;
   onProgress?: (edge: Edge, pct: number, grip: number) => void;
   onRelease?: (edge: Edge, pct: number, willReveal: boolean, grip: number) => void;
 }
@@ -326,6 +327,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const cornerInset = LONG_EDGES.has(edge)
         ? clamp(tangentSize * 0.18, thumbWidth * 0.9, tangentSize * 0.24)
         : clamp(tangentSize * 0.1, thumbWidth * 0.52, tangentSize * 0.14);
+
+      if (propsRef.current.showThumbs === false) return;
 
       function drawThumb(tangent: number, thumbAngle: number) {
         const { pull, bell } = pullAt(tangent);

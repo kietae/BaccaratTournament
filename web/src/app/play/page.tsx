@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ack, getSocket, PLAYER_TOKEN_KEY } from '@/lib/socket';
 import type { BetType, CardView, Edge, TableState } from '@/lib/types';
@@ -44,6 +44,34 @@ export default function PlayPage() {
   const [connError, setConnError] = useState<string | null>(null);
   const [caption, setCaption] = useState<string | null>(null);
   const lastLogAt = useRef(0);
+  const wakeLockRef = useRef<{ released: boolean; release: () => Promise<void> } | null>(null);
+
+  const requestWakeLock = useCallback(async () => {
+    if (document.visibilityState !== 'visible' || wakeLockRef.current?.released === false) return;
+    const wakeLock = (navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<{ released: boolean; release: () => Promise<void> }> };
+    }).wakeLock;
+    if (!wakeLock) return;
+    try {
+      wakeLockRef.current = await wakeLock.request('screen');
+    } catch {
+      // Low-power mode and browser policy may deny the request; gameplay
+      // remains usable and the next visibility/user action retries it.
+    }
+  }, []);
+
+  useEffect(() => {
+    void requestWakeLock();
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') void requestWakeLock();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      void wakeLockRef.current?.release().catch(() => undefined);
+      wakeLockRef.current = null;
+    };
+  }, [requestWakeLock]);
 
   useEffect(() => {
     const token = localStorage.getItem(PLAYER_TOKEN_KEY);
@@ -102,6 +130,7 @@ export default function PlayPage() {
     await document.documentElement.requestFullscreen?.().catch(() => undefined);
     const orientation = screen.orientation as ScreenOrientation & { lock?: (mode: 'landscape') => Promise<void> };
     await orientation.lock?.('landscape').catch(() => undefined);
+    await requestWakeLock();
   }
 
   const activeCard = state.cards.find((c) => c.dealt && !c.revealed) || null;
@@ -115,7 +144,7 @@ export default function PlayPage() {
       <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">토너먼트 게임은 가로모드 전용입니다.</p></div>
       <button type="button" onClick={enterLandscape} className="rounded-xl bg-amber-400 px-6 py-3 font-black text-zinc-950 active:scale-[0.98]">가로모드로 전환</button>
     </div>
-    <main className="play-shell h-[100dvh] overflow-hidden flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
+    <main className="play-shell h-[100svh] overflow-hidden flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
       <TopBar state={state} />
       <div className="play-road"><BigRoadGrid road={state.bigRoad} /></div>
 
@@ -145,17 +174,15 @@ export default function PlayPage() {
       )}
 
       {state.phase === 'dealing' && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 text-zinc-400">
-          <p className="text-sm">플레이어 → 뱅커 순서로 카드를 배분합니다</p>
-          <div className="flex justify-center gap-6">
-            <CardRow label="플레이어" cards={state.cards.filter((c) => c.side === 'player')} />
-            <CardRow label="뱅커" cards={state.cards.filter((c) => c.side === 'banker')} />
-          </div>
+        <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(190px,280px)_minmax(92px,1fr)] items-center gap-2 text-zinc-400">
+          <CardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} scale={1.5} showTotal />
+          <p className="text-center text-sm">플레이어 → 뱅커 순서로 카드를 배분합니다</p>
+          <CardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} scale={1.5} showTotal />
         </div>
       )}
 
       {isSqueezingPhase && (
-        <SqueezePhase state={state} activeCard={activeCard} />
+        <SqueezePhase key={activeCard?.cardId ?? 'no-active-card'} state={state} activeCard={activeCard} />
       )}
 
       {isCardCallPhase && <CardCallPhase state={state} />}
@@ -208,6 +235,25 @@ function BettingPhase({ state, me }: { state: TableState; me: NonNullable<TableS
 const SIDE_LABEL: Record<CardView['side'], string> = { player: '플레이어', banker: '뱅커' };
 
 function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: CardView | null }) {
+  const [controlPeel, setControlPeel] = useState<{ edge: Edge; pct: number; grip: number } | null>(null);
+  const lastControlSent = useRef(0);
+
+  function controlProgress(edge: Edge, pct: number, grip: number) {
+    setControlPeel({ edge, pct, grip });
+    if (performance.now() - lastControlSent.current < 55) return;
+    lastControlSent.current = performance.now();
+    getSocket().emit('squeezeProgress', { cardId: activeCard?.cardId, edge, pct, grip });
+  }
+
+  function controlRelease(edge: Edge, pct: number, willReveal: boolean, grip: number) {
+    if (!activeCard) return;
+    if (willReveal) ack('squeezeRelease', { cardId: activeCard.cardId, edge, pct, grip });
+    else {
+      setControlPeel(null);
+      getSocket().emit('squeezeProgress', { cardId: activeCard.cardId, edge, pct: 0, grip });
+    }
+  }
+
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-1">
       <p className="text-center text-sm text-zinc-400">
@@ -219,37 +265,25 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
       {activeCard && (() => {
         const iCanSqueezeThisCard = state.isSqueezer && activeCard.needsSqueeze;
         return (
-        <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(150px,220px)_minmax(92px,1fr)] items-center gap-2">
+        <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(190px,280px)_minmax(92px,1fr)] items-center gap-2">
           <CardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={1.5} showTotal />
           <div className="flex flex-col items-center gap-1 min-h-0">
-          {activeCard.needsSqueeze ? <div data-testid="squeeze-stage" className="squeeze-stage rounded-xl overflow-hidden shadow-2xl border border-amber-600/30 w-full aspect-[11/16] max-h-[calc(100dvh-6.5rem)]">
-            {iCanSqueezeThisCard ? (
-              <SqueezeCanvas
-                key={activeCard.cardId}
-                mode="interactive"
-                revealed={activeCard.revealed}
-                rank={activeCard.rank}
-                suit={activeCard.suit}
-                onProgress={(edge: Edge, pct: number, grip: number) => {
-                  getSocket().emit('squeezeProgress', { cardId: activeCard.cardId, edge, pct, grip });
-                }}
-                onRelease={(edge: Edge, pct: number, willReveal: boolean, grip: number) => {
-                  if (willReveal) ack('squeezeRelease', { cardId: activeCard.cardId, edge, pct, grip });
-                  else getSocket().emit('squeezeProgress', { cardId: activeCard.cardId, edge, pct: 0, grip });
-                }}
-              />
-            ) : (
+          {activeCard.needsSqueeze ? <div className="flex items-center justify-center gap-2 w-full">
+            {iCanSqueezeThisCard && <SwipeControl axis="vertical" onProgress={controlProgress} onRelease={controlRelease} />}
+            <div data-testid="squeeze-stage" className="squeeze-stage rounded-xl overflow-hidden shadow-2xl border border-amber-600/30 aspect-[11/16] max-h-[calc(100svh-6.5rem)]">
               <SqueezeCanvas
                 key={activeCard.cardId}
                 mode="remote"
                 revealed={activeCard.revealed}
                 rank={activeCard.rank}
                 suit={activeCard.suit}
-                remoteEdge={activeCard.edge}
-                remotePct={activeCard.pct}
-                remoteGrip={activeCard.grip}
+                remoteEdge={controlPeel?.edge ?? activeCard.edge}
+                remotePct={controlPeel?.pct ?? activeCard.pct}
+                remoteGrip={controlPeel?.grip ?? activeCard.grip}
+                showThumbs={!iCanSqueezeThisCard}
               />
-            )}
+            </div>
+            {iCanSqueezeThisCard && <SwipeControl axis="horizontal" onProgress={controlProgress} onRelease={controlRelease} />}
           </div> : <div className="text-center text-sm text-amber-100/70">딜러 오픈</div>}
           </div>
           <CardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={1.5} showTotal />
@@ -258,6 +292,56 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
       })()}
     </div>
   );
+}
+
+function SwipeControl({ axis, onProgress, onRelease }: {
+  axis: 'vertical' | 'horizontal';
+  onProgress: (edge: Edge, pct: number, grip: number) => void;
+  onRelease: (edge: Edge, pct: number, willReveal: boolean, grip: number) => void;
+}) {
+  const drag = useRef<{ pointerId: number; x: number; y: number; edge: Edge; pct: number; released: boolean } | null>(null);
+
+  function update(event: React.PointerEvent<HTMLDivElement>) {
+    const current = drag.current;
+    if (!current || current.released) return;
+    const delta = axis === 'vertical' ? event.clientY - current.y : event.clientX - current.x;
+    const edge: Edge = axis === 'vertical'
+      ? (delta >= 0 ? 'top' : 'bottom')
+      : (delta >= 0 ? 'left' : 'right');
+    const pct = Math.min(1, Math.abs(delta) / Math.max(110, window.innerWidth * 0.2));
+    current.edge = edge;
+    current.pct = pct;
+    onProgress(edge, pct, 0.5);
+    if (pct >= 0.94) {
+      current.released = true;
+      onRelease(edge, pct, true, 0.5);
+      try { navigator.vibrate?.(28); } catch { /* unsupported */ }
+    }
+  }
+
+  function finish() {
+    const current = drag.current;
+    if (!current || current.released) { drag.current = null; return; }
+    onRelease(current.edge, current.pct, current.pct >= 0.94, 0.5);
+    drag.current = null;
+  }
+
+  return <div
+    role="application"
+    aria-label={axis === 'vertical' ? '위아래 스퀴즈 조작' : '좌우 스퀴즈 조작'}
+    className={`squeeze-control shrink-0 rounded-full border border-amber-300/35 bg-black/45 text-amber-200 flex items-center justify-center select-none ${axis === 'vertical' ? 'h-36 w-9' : 'h-12 w-12'}`}
+    style={{ touchAction: 'none' }}
+    onPointerDown={(event) => {
+      const edge: Edge = axis === 'vertical' ? 'top' : 'left';
+      drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, edge, pct: 0, released: false };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }}
+    onPointerMove={update}
+    onPointerUp={finish}
+    onPointerCancel={finish}
+  >
+    <span className={`font-black text-lg ${axis === 'horizontal' ? 'whitespace-nowrap' : 'leading-5 text-center'}`}>{axis === 'vertical' ? <>↑<br />↓</> : '←→'}</span>
+  </div>;
 }
 
 function CardRow({ label, cards, activeId, scale = 1, showTotal = false }: { label: string; cards: CardView[]; activeId?: string; scale?: number; showTotal?: boolean }) {
@@ -285,14 +369,12 @@ function CardRow({ label, cards, activeId, scale = 1, showTotal = false }: { lab
 function CardCallPhase({ state }: { state: TableState }) {
   const latestCall = state.log[state.log.length - 1]?.text;
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-5">
-      <div className="flex justify-center gap-8">
-        <CardRow label="플레이어" cards={state.cards.filter((card) => card.side === 'player')} />
-        <CardRow label="뱅커" cards={state.cards.filter((card) => card.side === 'banker')} />
-      </div>
-      <div className="rounded-full border border-amber-300/25 bg-black/35 px-6 py-2 text-center text-lg font-black text-amber-100">
+    <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(190px,280px)_minmax(92px,1fr)] items-center gap-2">
+      <CardRow label="PLAYER" cards={state.cards.filter((card) => card.side === 'player')} scale={1.5} showTotal />
+      <div className="rounded-full border border-amber-300/25 bg-black/35 px-4 py-2 text-center text-lg font-black text-amber-100">
         {latestCall}
       </div>
+      <CardRow label="BANKER" cards={state.cards.filter((card) => card.side === 'banker')} scale={1.5} showTotal />
     </div>
   );
 }
