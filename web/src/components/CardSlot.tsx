@@ -7,7 +7,7 @@ import type { CardView } from '@/lib/types';
 // Static (non-interactive) card display for table-layout slots — anything
 // that isn't the one card currently being squeezed. Face down until
 // `card.revealed`; no drag surface here, that's SqueezeCanvas's job.
-export default function CardSlot({ card, dim }: { card: CardView; dim?: boolean }) {
+export default function CardSlot({ card, dim, scale = 1 }: { card: CardView; dim?: boolean; scale?: number }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -28,25 +28,27 @@ export default function CardSlot({ card, dim }: { card: CardView; dim?: boolean 
       else drawCardBack(ctx, w, h, paint);
     }
     paint();
-  }, [card.revealed, card.rank, card.suit]);
+  }, [card.revealed, card.rank, card.suit, scale]);
 
   const rotated = card.orientation === 'horizontal';
+  const cardWidth = 44 * scale;
+  const cardHeight = 64 * scale;
   return (
     <div
       className="relative rounded-md overflow-visible card-deal-in"
-      style={{ width: rotated ? 64 : 44, height: rotated ? 44 : 64, opacity: dim ? 0.4 : 1, transition: 'opacity 0.2s' }}
+      style={{ width: rotated ? cardHeight : cardWidth, height: rotated ? cardWidth : cardHeight, opacity: dim ? 0.4 : 1, transition: 'opacity 0.2s' }}
     >
       <div
         className="absolute rounded-md overflow-hidden shadow-md"
         style={{
-          width: 44,
-          height: 64,
+          width: cardWidth,
+          height: cardHeight,
           top: '50%',
           left: '50%',
           transform: rotated ? 'translate(-50%, -50%) rotate(90deg)' : 'translate(-50%, -50%)'
         }}
       >
-        <canvas ref={ref} style={{ width: 44, height: 64, display: 'block' }} />
+        <canvas ref={ref} style={{ width: cardWidth, height: cardHeight, display: 'block' }} />
       </div>
     </div>
   );

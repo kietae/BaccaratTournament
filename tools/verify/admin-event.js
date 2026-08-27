@@ -20,7 +20,7 @@ async function squeeze(page, admin, capture) {
   const box = await stage.boundingBox();
   if (!box) throw new Error('squeeze stage has no bounding box');
   const from = { x: box.x + box.width / 2, y: box.y + box.height - 6 };
-  const to = { x: from.x, y: box.y + box.height * 0.18 };
+  const to = { x: from.x, y: box.y + box.height * 0.02 };
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) {
@@ -77,6 +77,7 @@ async function squeeze(page, admin, capture) {
   }
   await admin.getByText('토너먼트 종료').waitFor({ timeout: 25000 });
   await admin.getByText('최종 결과').waitFor();
+  await admin.locator('[data-testid=result-hands]').waitFor();
   await admin.screenshot({ path: '../../.tools/admin-final.png', fullPage: true });
   if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
   console.log(`OK: lobby, live squeeze broadcast, leaderboard and final podium (${squeezed} cards)`);

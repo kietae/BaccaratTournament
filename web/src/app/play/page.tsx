@@ -8,6 +8,7 @@ import BettingBoard from '@/components/BettingBoard';
 import BigRoadGrid from '@/components/BigRoadGrid';
 import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
 import SqueezeCanvas from '@/components/SqueezeCanvas';
+import ResultHands from '@/components/ResultHands';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -264,7 +265,8 @@ function ResultPhase({ state, me }: { state: TableState; me: NonNullable<TableSt
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
       {result && (
-        <div>
+        <div className="flex flex-col gap-4">
+          <ResultHands cards={state.cards} result={result} scale={1.15} />
           <div className="text-2xl font-bold text-amber-300">
             {result.outcome === 'tie' ? '타이' : result.outcome === 'player' ? '플레이어 승' : '뱅커 승'}
             {(result.playerNatural || result.bankerNatural) && <span className="ml-2 text-sm text-emerald-400">내추럴</span>}
