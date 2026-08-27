@@ -102,9 +102,9 @@ export default function PlayPage() {
   const isSqueezingPhase = state.phase === 'squeeze' || state.phase === 'extra-card';
 
   return (
-    <main className="flex-1 flex flex-col gap-3 p-3 pb-6 max-w-md mx-auto w-full">
+    <main className="play-shell flex-1 flex flex-col gap-3 p-3 pb-6 max-w-md mx-auto w-full">
       <TopBar state={state} />
-      <BigRoadGrid road={state.bigRoad} />
+      <div className="play-road"><BigRoadGrid road={state.bigRoad} /></div>
 
       {caption && (
         <div className="text-center text-sm text-amber-200 bg-black/50 rounded-full py-1 px-3 mx-auto">{caption}</div>
