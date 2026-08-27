@@ -47,8 +47,9 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     const textureHeight = 800;
     const backTexture = document.createElement('canvas');
     const frontTexture = document.createElement('canvas');
+    const squeezeFaceTexture = document.createElement('canvas');
     const mysteryTexture = document.createElement('canvas');
-    for (const texture of [backTexture, frontTexture, mysteryTexture]) {
+    for (const texture of [backTexture, frontTexture, squeezeFaceTexture, mysteryTexture]) {
       texture.width = textureWidth;
       texture.height = textureHeight;
     }
@@ -59,6 +60,31 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     }
     paintBackTexture();
     drawMystery(mysteryTexture.getContext('2d')!, textureWidth, textureHeight);
+
+    function paintSqueezeFaceTexture() {
+      const squeezeContext = squeezeFaceTexture.getContext('2d')!;
+      squeezeContext.clearRect(0, 0, textureWidth, textureHeight);
+      squeezeContext.drawImage(frontTexture, 0, 0);
+
+      // Baccarat squeeze suspense comes from reading the centre pips first.
+      // Hide printed corner ranks/suits while the card is bent; the untouched
+      // face (including its indices) is only drawn after the reveal commits.
+      const inset = 8;
+      const maskWidth = 72;
+      const maskHeight = 126;
+      const corners = [
+        [inset, inset],
+        [textureWidth - inset - maskWidth, inset],
+        [inset, textureHeight - inset - maskHeight],
+        [textureWidth - inset - maskWidth, textureHeight - inset - maskHeight]
+      ];
+      squeezeContext.fillStyle = '#fff';
+      for (const [x, y] of corners) {
+        squeezeContext.beginPath();
+        squeezeContext.roundRect(x, y, maskWidth, maskHeight, 10);
+        squeezeContext.fill();
+      }
+    }
 
     let width = 1;
     let height = 1;
@@ -296,16 +322,18 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           lastRank = '';
           lastSuit = '';
         });
+        paintSqueezeFaceTexture();
         lastRank = current.rank!;
         lastSuit = current.suit!;
       }
       const face = current.rank && current.suit ? frontTexture : mysteryTexture;
+      const squeezeFace = current.rank && current.suit ? squeezeFaceTexture : mysteryTexture;
       ctx.clearRect(0, 0, width, height);
       if (current.revealed) ctx.drawImage(face, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
       else {
         ctx.drawImage(backTexture, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
         const remote = remoteGeometry();
-        if (remote) paintPeel(remote.edge, remote.origin, remote.pointer, face);
+        if (remote) paintPeel(remote.edge, remote.origin, remote.pointer, squeezeFace);
         else if (state.edge && state.origin && state.pointer) {
           if (state.returning) {
             state.pointer.x += (state.origin.x - state.pointer.x) * 0.24;
@@ -315,7 +343,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
             }
           }
           if (state.edge && state.origin && state.pointer) {
-            paintPeel(state.edge, state.origin, state.pointer, face);
+            paintPeel(state.edge, state.origin, state.pointer, squeezeFace);
             if (state.dragging && performance.now() - state.lastProgressSent > 55) {
               state.lastProgressSent = performance.now();
               const pct = depth(state.edge, state.origin, state.pointer) / extentFor(state.edge, width, height);
