@@ -9,6 +9,7 @@ import BigRoadGrid from '@/components/BigRoadGrid';
 import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
 import SqueezeCanvas from '@/components/SqueezeCanvas';
 import ResultHands from '@/components/ResultHands';
+import RoundResultCallout from '@/components/RoundResultCallout';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -267,13 +268,7 @@ function ResultPhase({ state, me }: { state: TableState; me: NonNullable<TableSt
       {result && (
         <div className="flex flex-col gap-4">
           <ResultHands cards={state.cards} result={result} scale={1.15} />
-          <div className="text-2xl font-bold text-amber-300">
-            {result.outcome === 'tie' ? '타이' : result.outcome === 'player' ? '플레이어 승' : '뱅커 승'}
-            {(result.playerNatural || result.bankerNatural) && <span className="ml-2 text-sm text-emerald-400">내추럴</span>}
-          </div>
-          <div className="text-sm text-zinc-400 mt-1">
-            플레이어 {result.playerTotal} : 뱅커 {result.bankerTotal}
-          </div>
+          <RoundResultCallout result={result} />
         </div>
       )}
       {me.settlement && me.settlement.length > 0 && (

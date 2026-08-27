@@ -35,6 +35,66 @@
   .card-deal-in { animation: none; }
 }
 
+@keyframes result-pop {
+  0% { opacity: 0; transform: scale(0.72); filter: blur(8px); }
+  62% { opacity: 1; transform: scale(1.055); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes result-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+  42% { opacity: 0.72; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.55); }
+}
+
+@keyframes result-sweep {
+  0% { transform: translateX(-180%) skewX(-22deg); opacity: 0; }
+  25% { opacity: 0.7; }
+  70%, 100% { transform: translateX(230%) skewX(-22deg); opacity: 0; }
+}
+
+.result-callout {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: min(20rem, 90vw);
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 1.25rem;
+  padding: 1rem 1.4rem;
+  text-align: center;
+  box-shadow: 0 20px 55px rgb(0 0 0 / 0.46), inset 0 1px 0 rgb(255 255 255 / 0.15);
+  animation: result-pop 520ms cubic-bezier(0.16, 0.9, 0.25, 1) both;
+}
+
+.result-callout-large { padding: 1.4rem 2.4rem; }
+.result-player { background: linear-gradient(135deg, rgb(20 77 150 / 0.96), rgb(9 31 74 / 0.96)); }
+.result-banker { background: linear-gradient(135deg, rgb(166 35 48 / 0.96), rgb(76 12 24 / 0.96)); }
+.result-tie { background: linear-gradient(135deg, rgb(22 128 88 / 0.96), rgb(8 58 43 / 0.96)); }
+
+.result-burst {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(255 233 160 / 0.58), transparent 62%);
+  animation: result-burst 900ms ease-out both;
+}
+
+.result-sweep {
+  position: absolute;
+  inset: -30% auto -30% 0;
+  width: 28%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.42), transparent);
+  animation: result-sweep 1050ms 120ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-callout, .result-burst, .result-sweep { animation: none; }
+}
+
 .admin-input:focus {
   outline: 2px solid rgb(245 158 11 / 0.55);
   outline-offset: 1px;
