@@ -235,17 +235,21 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const folds: Pt[] = [];
       const tips: Pt[] = [];
 
-      // A squeezed card does not uncover a flat copy of its face. The original
-      // edge moves inward while a fold remains behind it; the visible face is
-      // the mirrored underside between those two curves.
-      for (let tangent = 0; tangent < tangentSize; tangent += step) {
-        const distance = (tangent + step * 0.5 - gripCenter) / Math.max(1, spread);
+      function pullAt(tangent: number) {
+        const distance = (tangent - gripCenter) / Math.max(1, spread);
         const bell = Math.exp(-0.5 * distance * distance);
         // Playing cards are stiff: pulling one point bends the whole edge.
         // Keep a meaningful baseline at both corners instead of letting the
         // Gaussian fall to zero (which looked like stretching a rubber sheet).
         const influence = LONG_EDGES.has(edge) ? 0.38 + bell * 0.62 : 0.6 + bell * 0.4;
-        const pull = amount * influence;
+        return { pull: amount * influence, bell };
+      }
+
+      // A squeezed card does not uncover a flat copy of its face. The original
+      // edge moves inward while a fold remains behind it; the visible face is
+      // the mirrored underside between those two curves.
+      for (let tangent = 0; tangent < tangentSize; tangent += step) {
+        const { pull, bell } = pullAt(tangent + step * 0.5);
         const foldDepth = pull * (0.48 + 0.08 * bell);
         const tipDepth = pull;
         if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
@@ -315,11 +319,6 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // corner index while squeezing a physical baccarat card. It is drawn
       // last so it genuinely occludes the bent face in both local and remote
       // (projector) views.
-      const tipNormal = amount;
-      const thumbTip = edge === 'left' ? { x: tipNormal, y: gripCenter }
-        : edge === 'right' ? { x: width - tipNormal, y: gripCenter }
-          : edge === 'top' ? { x: gripCenter, y: tipNormal }
-            : { x: gripCenter, y: height - tipNormal };
       const normalAngle = edge === 'left' ? 0
         : edge === 'right' ? Math.PI
           : edge === 'top' ? Math.PI / 2
@@ -327,39 +326,50 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const thumbLength = clamp(Math.min(width, height) * 0.19, 35, 54);
       const thumbWidth = thumbLength * 0.7;
       const inwardOffset = thumbLength * 0.18;
+      const cornerInset = clamp(tangentSize * 0.12, thumbWidth * 0.72, tangentSize * 0.18);
 
-      ctx.save();
-      ctx.translate(
-        thumbTip.x - Math.cos(normalAngle) * inwardOffset,
-        thumbTip.y - Math.sin(normalAngle) * inwardOffset
-      );
-      ctx.rotate(normalAngle);
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-      ctx.shadowBlur = 13;
-      ctx.shadowOffsetY = 4;
-      const skin = ctx.createRadialGradient(-thumbLength * 0.14, -thumbWidth * 0.2, 2, 0, 0, thumbLength * 0.62);
-      skin.addColorStop(0, '#f3c6a6');
-      skin.addColorStop(0.55, '#d99a75');
-      skin.addColorStop(1, '#9f6048');
-      ctx.fillStyle = skin;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, thumbLength * 0.58, thumbWidth * 0.58, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowColor = 'transparent';
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(92, 48, 36, 0.7)';
-      ctx.stroke();
+      function drawThumb(tangent: number) {
+        const tipNormal = pullAt(tangent).pull;
+        const thumbTip = edge === 'left' ? { x: tipNormal, y: tangent }
+          : edge === 'right' ? { x: width - tipNormal, y: tangent }
+            : edge === 'top' ? { x: tangent, y: tipNormal }
+              : { x: tangent, y: height - tipNormal };
+        ctx.save();
+        ctx.translate(
+          thumbTip.x - Math.cos(normalAngle) * inwardOffset,
+          thumbTip.y - Math.sin(normalAngle) * inwardOffset
+        );
+        ctx.rotate(normalAngle);
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowBlur = 13;
+        ctx.shadowOffsetY = 4;
+        const skin = ctx.createRadialGradient(-thumbLength * 0.14, -thumbWidth * 0.2, 2, 0, 0, thumbLength * 0.62);
+        skin.addColorStop(0, '#f3c6a6');
+        skin.addColorStop(0.55, '#d99a75');
+        skin.addColorStop(1, '#9f6048');
+        ctx.fillStyle = skin;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, thumbLength * 0.58, thumbWidth * 0.58, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = 'rgba(92, 48, 36, 0.7)';
+        ctx.stroke();
 
-      // Nail on the outer half of the thumb gives a readable orientation at
-      // phone size without requiring a photographic hand asset.
-      ctx.fillStyle = 'rgba(255, 221, 205, 0.82)';
-      ctx.beginPath();
-      ctx.ellipse(-thumbLength * 0.14, 0, thumbLength * 0.27, thumbWidth * 0.34, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 0.9;
-      ctx.strokeStyle = 'rgba(142, 82, 66, 0.55)';
-      ctx.stroke();
-      ctx.restore();
+        // Nail on the outer half of the thumb gives a readable orientation at
+        // phone size without requiring a photographic hand asset.
+        ctx.fillStyle = 'rgba(255, 221, 205, 0.82)';
+        ctx.beginPath();
+        ctx.ellipse(-thumbLength * 0.14, 0, thumbLength * 0.27, thumbWidth * 0.34, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 0.9;
+        ctx.strokeStyle = 'rgba(142, 82, 66, 0.55)';
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawThumb(cornerInset);
+      drawThumb(tangentSize - cornerInset);
     }
 
     function render() {
