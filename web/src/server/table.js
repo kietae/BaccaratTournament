@@ -262,9 +262,10 @@ function dealCalledThirdCard(t) {
   return true;
 }
 
-// Every edge can be squeezed through its full extent. 95% is treated as the
-// physical end stop so small pointer/border rounding cannot make completion
-// impossible on a phone.
+// Pulling 1.28 card-lengths moves the physical fold crease to roughly 72% of
+// the face. This prevents an early result before centre pips are visible.
+const SQUEEZE_REVEAL_FRAC = 1.28;
+const MAX_SQUEEZE_FRAC = 1.35;
 const LONG_EDGES = new Set(['left', 'right']);
 const SHORT_EDGES = new Set(['top', 'bottom']);
 
@@ -346,7 +347,7 @@ function squeezeProgress(t, playerId, cardId, edge, pct, grip) {
   if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
   if (!LONG_EDGES.has(edge) && !SHORT_EDGES.has(edge)) throw new GameError('알 수 없는 변');
   current.edge = edge;
-  current.pct = Math.max(0, Math.min(1, Number(pct) || 0));
+  current.pct = Math.max(0, Math.min(MAX_SQUEEZE_FRAC, Number(pct) || 0));
   current.grip = Math.max(0.08, Math.min(0.92, Number(grip) || 0.5));
   return current;
 }
@@ -361,11 +362,11 @@ function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
   if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
   if (!LONG_EDGES.has(edge) && !SHORT_EDGES.has(edge)) throw new GameError('알 수 없는 변');
-  if ((Number(pct) || 0) < 0.95) {
-    throw new GameError('카드를 끝까지 열어야 공개됩니다');
+  if ((Number(pct) || 0) < SQUEEZE_REVEAL_FRAC) {
+    throw new GameError('카드를 70% 이상 열어야 공개됩니다');
   }
   current.edge = edge;
-  current.pct = Math.max(0, Math.min(1, Number(pct) || 0));
+  current.pct = Math.max(0, Math.min(MAX_SQUEEZE_FRAC, Number(pct) || 0));
   current.grip = Math.max(0.08, Math.min(0.92, Number(grip) || 0.5));
   current.revealed = true;
 

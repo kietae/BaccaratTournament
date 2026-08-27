@@ -7,7 +7,11 @@ import type { Edge } from '@/lib/types';
 interface Pt { x: number; y: number; }
 
 const LONG_EDGES = new Set<Edge>(['left', 'right']);
-const REVEAL_FRAC = 0.95;
+// The fold crease travels only about 56% as far as the grabbed edge. Requiring
+// 1.28 card-lengths of pull puts that crease at roughly 72% of the face, so a
+// bottom squeeze cannot resolve a 7 before its centre pip is actually visible.
+const REVEAL_FRAC = 1.28;
+const MAX_PULL_FRAC = 1.35;
 
 export interface SqueezeCanvasProps {
   mode: 'interactive' | 'remote';
@@ -125,7 +129,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         : edge === 'right' ? origin.x - pointer.x
           : edge === 'top' ? pointer.y - origin.y
             : origin.y - pointer.y;
-      const max = extentFor(edge, width, height);
+      const max = extentFor(edge, width, height) * MAX_PULL_FRAC;
       return clamp(raw, 0, max);
     }
 
@@ -149,8 +153,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if (!state.dragging) return;
       const point = localPoint(event);
       state.pointer = {
-        x: clamp(point.x, -width * 0.25, width * 1.25),
-        y: clamp(point.y, -height * 0.25, height * 1.25)
+        x: clamp(point.x, -width * 0.35, width * 1.35),
+        y: clamp(point.y, -height * 0.35, height * 1.35)
       };
       if (state.edge && state.origin && !state.revealSent) {
         const pct = depth(state.edge, state.origin, state.pointer) / extentFor(state.edge, width, height);
@@ -200,7 +204,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         : edge === 'right' ? { x: width, y: height * g }
           : edge === 'top' ? { x: width * g, y: 0 }
             : { x: width * g, y: height };
-      const amount = Math.min(current.remotePct * extentFor(edge, width, height), extentFor(edge, width, height));
+      const amount = Math.min(current.remotePct * extentFor(edge, width, height), extentFor(edge, width, height) * MAX_PULL_FRAC);
       const pointer = edge === 'left' ? { x: amount, y: origin.y }
         : edge === 'right' ? { x: width - amount, y: origin.y }
           : edge === 'top' ? { x: origin.x, y: amount }

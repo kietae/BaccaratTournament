@@ -39,8 +39,8 @@ test('squeeze progress stores card-relative depth and grip safely', () => {
 
 test('any edge reveals only at the practical end stop', () => {
   const { tournament, player } = activeTable();
-  assert.throws(() => table.squeezeReveal(tournament, player.id, 'P2', 'left', 0.949, 0.5));
-  const revealed = table.squeezeReveal(tournament, player.id, 'P2', 'left', 0.95, 0.5);
+  assert.throws(() => table.squeezeReveal(tournament, player.id, 'P2', 'left', 1.279, 0.5));
+  const revealed = table.squeezeReveal(tournament, player.id, 'P2', 'left', 1.28, 0.5);
   assert.equal(revealed.current.revealed, true);
   assert.equal(revealed.done, false);
   assert.equal(table.completeDealerCall(tournament).done, true);
@@ -120,7 +120,7 @@ test('third cards are called, paused, and dealt in player then banker order', ()
   tournament.round.cardIndex = 3;
   tournament.round.dealIndex = 3;
 
-  table.squeezeReveal(tournament, player.id, 'B2', 'left', 0.95, 0.5);
+  table.squeezeReveal(tournament, player.id, 'B2', 'left', 1.28, 0.5);
   assert.equal(tournament.round.phase, 'dealer-call');
   assert.equal(tournament.round.log.at(-1).text, 'BANKER 6');
   table.completeDealerCall(tournament);
@@ -132,7 +132,7 @@ test('third cards are called, paused, and dealt in player then banker order', ()
   assert.equal(tournament.round.phase, 'extra-card');
   assert.equal(tournament.round.dealIndex, 4);
 
-  table.squeezeReveal(tournament, player.id, 'P3', 'top', 0.95, 0.5);
+  table.squeezeReveal(tournament, player.id, 'P3', 'top', 1.28, 0.5);
   assert.equal(tournament.round.phase, 'third-card-call');
   assert.equal(tournament.round.dealIndex, 4);
   assert.equal(tournament.round.log.at(-1).text, 'ONE MORE BANKER');

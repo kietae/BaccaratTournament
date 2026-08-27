@@ -13,6 +13,7 @@ const NEXT_ROUND_MS = table.NEXT_ROUND_SECONDS * 1000;
 const AUTO_REVEAL_MS = 900; // pacing between dealer-opened cards nobody bet on
 const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
 const HAND_CALL_MS = 1500; // leave room for the spoken hand total / result
+const SQUEEZE_REVEAL_FRAC = 1.28;
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -249,7 +250,7 @@ function registerSocketServer(io) {
       if (!t || !playerId || !payload) { ack?.({ ok: false }); return; }
       try {
         if (t.timers.squeezeReveal) { ack?.({ ok: false }); return; }
-        if ((Number(payload.pct) || 0) < 0.95) { ack?.({ ok: false, error: '카드를 끝까지 열어야 공개됩니다' }); return; }
+        if ((Number(payload.pct) || 0) < SQUEEZE_REVEAL_FRAC) { ack?.({ ok: false, error: '카드를 70% 이상 열어야 공개됩니다' }); return; }
         // Hold the fully squeezed pose for one beat before flipping the card.
         table.squeezeProgress(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
         broadcastState();
