@@ -7,8 +7,7 @@ import type { Edge } from '@/lib/types';
 interface Pt { x: number; y: number; }
 
 const LONG_EDGES = new Set<Edge>(['left', 'right']);
-const LONG_EDGE_CAP_FRAC = 0.68;
-const SHORT_EDGE_REVEAL_FRAC = 0.55;
+const REVEAL_FRAC = 0.5;
 
 export interface SqueezeCanvasProps {
   mode: 'interactive' | 'remote';
@@ -103,6 +102,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       origin: null as Pt | null,
       pointer: null as Pt | null,
       returning: false,
+      revealSent: false,
       lastProgressSent: 0
     };
 
@@ -151,7 +151,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         : edge === 'right' ? origin.x - pointer.x
           : edge === 'top' ? pointer.y - origin.y
             : origin.y - pointer.y;
-      const max = extentFor(edge, width, height) * (LONG_EDGES.has(edge) ? LONG_EDGE_CAP_FRAC : 1);
+      const max = extentFor(edge, width, height);
       return clamp(raw, 0, max);
     }
 
@@ -164,6 +164,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const origin = anchor(edge, point);
       state.dragging = true;
       state.returning = false;
+      state.revealSent = false;
       state.edge = edge;
       state.origin = origin;
       state.pointer = { ...origin };
@@ -177,6 +178,15 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         x: clamp(point.x, -width * 0.25, width * 1.25),
         y: clamp(point.y, -height * 0.25, height * 1.25)
       };
+      if (state.edge && state.origin && !state.revealSent) {
+        const pct = depth(state.edge, state.origin, state.pointer) / extentFor(state.edge, width, height);
+        if (pct >= REVEAL_FRAC) {
+          state.revealSent = true;
+          state.dragging = false;
+          propsRef.current.onRelease?.(state.edge, pct, true, grip(state.edge, state.origin));
+          try { navigator.vibrate?.(28); } catch { /* unsupported */ }
+        }
+      }
     }
 
     function returnToEdge() {
@@ -190,7 +200,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if (!state.dragging || !state.edge || !state.origin || !state.pointer) return;
       const edge = state.edge;
       const pct = depth(edge, state.origin, state.pointer) / extentFor(edge, width, height);
-      const willReveal = !LONG_EDGES.has(edge) && pct >= SHORT_EDGE_REVEAL_FRAC;
+      const willReveal = pct >= REVEAL_FRAC;
       propsRef.current.onRelease?.(edge, pct, willReveal, grip(edge, state.origin));
       state.dragging = false;
       if (!willReveal) state.returning = true;
@@ -216,7 +226,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         : edge === 'right' ? { x: width, y: height * g }
           : edge === 'top' ? { x: width * g, y: 0 }
             : { x: width * g, y: height };
-      const amount = Math.min(current.remotePct * extentFor(edge, width, height), extentFor(edge, width, height) * (LONG_EDGES.has(edge) ? LONG_EDGE_CAP_FRAC : 1));
+      const amount = Math.min(current.remotePct * extentFor(edge, width, height), extentFor(edge, width, height));
       const pointer = edge === 'left' ? { x: amount, y: origin.y }
         : edge === 'right' ? { x: width - amount, y: origin.y }
           : edge === 'top' ? { x: origin.x, y: amount }

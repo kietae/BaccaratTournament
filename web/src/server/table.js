@@ -193,10 +193,8 @@ function beginSqueezeForCurrentCard(t) {
   t.round.phase = i < 4 ? 'squeeze' : 'extra-card';
 }
 
-// Long edges (left/right, relative to the card's own upright frame) are a
-// capped "peek": bounded depth, never a full reveal, always springs back.
-// Short edges (top/bottom) are the real confirm: unbounded, and dragging
-// past the threshold and releasing locks the card face-up.
+// Every edge can be squeezed through its full extent. Crossing half of the
+// relevant card dimension confirms the reveal immediately.
 const LONG_EDGES = new Set(['left', 'right']);
 const SHORT_EDGES = new Set(['top', 'bottom']);
 
@@ -271,8 +269,9 @@ function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
   if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
-  if (!SHORT_EDGES.has(edge) || (Number(pct) || 0) < 0.55) {
-    throw new GameError('짧은 변을 충분히 당겨야 카드가 공개됩니다');
+  if (!LONG_EDGES.has(edge) && !SHORT_EDGES.has(edge)) throw new GameError('알 수 없는 변');
+  if ((Number(pct) || 0) < 0.5) {
+    throw new GameError('카드를 절반 이상 열어야 공개됩니다');
   }
   current.edge = edge;
   current.pct = Math.max(0, Math.min(1, Number(pct) || 0));

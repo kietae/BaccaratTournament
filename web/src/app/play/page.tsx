@@ -181,7 +181,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
         const statusText = !activeCard.needsSqueeze
           ? '— 아무도 베팅하지 않아 딜러가 공개합니다'
           : iCanSqueezeThisCard
-            ? '— 긴 변을 살짝, 짧은 변을 끝까지'
+            ? '— 어느 변이든 절반 이상 열면 바로 공개'
             : '쪼기 관전 중';
         return (
         <div className="flex flex-col items-center gap-2 mt-2">

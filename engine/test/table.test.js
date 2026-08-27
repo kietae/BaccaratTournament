@@ -36,10 +36,10 @@ test('squeeze progress stores card-relative depth and grip safely', () => {
   assert.equal(card.grip, 0.8);
 });
 
-test('short-edge reveal requires 55% of the full card extent', () => {
+test('any edge reveals at 50% of the full card extent', () => {
   const { tournament, player } = activeTable();
-  assert.throws(() => table.squeezeReveal(tournament, player.id, 'P1', 'bottom', 0.549, 0.5));
-  const revealed = table.squeezeReveal(tournament, player.id, 'P1', 'bottom', 0.55, 0.5);
+  assert.throws(() => table.squeezeReveal(tournament, player.id, 'P1', 'left', 0.499, 0.5));
+  const revealed = table.squeezeReveal(tournament, player.id, 'P1', 'left', 0.5, 0.5);
   assert.equal(revealed.current.revealed, true);
   assert.equal(revealed.done, true);
 });
