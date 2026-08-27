@@ -250,8 +250,11 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           const flapWidth = Math.abs(tipX - foldX);
           const sourceDepth = clamp(foldDepth / width * textureWidth, 1, textureWidth);
           const sourceX = edge === 'left' ? 0 : textureWidth - sourceDepth;
-          const sourceY = tangent / height * textureHeight;
           const sourceH = (step + 1) / height * textureHeight;
+          // Reverse the other axis as well: a one-axis fold is a mirror,
+          // while two-axis reversal is a 180° rotation. Playing-card artwork
+          // is rotationally symmetric, so ranks stay readable, not mirrored.
+          const sourceY = clamp(textureHeight - (tangent / height * textureHeight) - sourceH, 0, textureHeight - sourceH);
           ctx.save();
           ctx.translate(flapLeft * 2 + flapWidth, 0);
           ctx.scale(-1, 1);
@@ -269,8 +272,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           const flapHeight = Math.abs(tipY - foldY);
           const sourceDepth = clamp(foldDepth / height * textureHeight, 1, textureHeight);
           const sourceY = edge === 'top' ? 0 : textureHeight - sourceDepth;
-          const sourceX = tangent / width * textureWidth;
           const sourceW = (step + 1) / width * textureWidth;
+          const sourceX = clamp(textureWidth - (tangent / width * textureWidth) - sourceW, 0, textureWidth - sourceW);
           ctx.save();
           ctx.translate(0, flapTop * 2 + flapHeight);
           ctx.scale(1, -1);
