@@ -224,22 +224,24 @@ function initialTotal(t, side) {
 }
 
 function outcomeCall(result) {
-  return result.outcome === 'player' ? 'PLAYER WINS' : result.outcome === 'banker' ? 'BANKER WINS' : 'TIE';
+  return result.outcome === 'player' ? '플레이어 윈' : result.outcome === 'banker' ? '뱅커 윈' : '타이';
 }
 
 function beginHandCall(t, side, finishesRound = false) {
   const total = initialTotal(t, side);
-  const qualifier = total >= 8 ? ' NATURAL' : side === 'player' && total >= 6 ? ' STANDS ON' : side === 'banker' && total === 7 ? ' STANDS ON' : '';
+  const sideLabel = side === 'player' ? '플레이어' : '뱅커';
+  const qualifier = total >= 8 ? ' 내추럴' : side === 'player' && total >= 6 ? ' 스탠즈 온' : side === 'banker' && total === 7 ? ' 스탠즈 온' : '';
   t.round.phase = 'dealer-call';
   t.round.callNextAction = finishesRound ? 'winner' : 'continue';
-  t.round.log.push({ type: 'call', text: `${side.toUpperCase()}${qualifier} ${total}`, at: Date.now() });
+  t.round.log.push({ type: 'call', text: `${sideLabel}${qualifier} ${total}`, at: Date.now() });
 }
 
 function beginThirdTotalCall(t, side, finishesRound) {
   const total = t.round.result[side === 'player' ? 'playerTotal' : 'bankerTotal'];
+  const sideLabel = side === 'player' ? '플레이어' : '뱅커';
   t.round.phase = 'dealer-call';
   t.round.callNextAction = finishesRound ? 'winner' : 'continue';
-  t.round.log.push({ type: 'call', text: `${side.toUpperCase()} ${total}`, at: Date.now() });
+  t.round.log.push({ type: 'call', text: `${sideLabel} ${total}`, at: Date.now() });
 }
 
 function completeDealerCall(t) {
@@ -262,9 +264,9 @@ function completeDealerCall(t) {
 }
 
 function callThirdCard(t, cardEntry) {
-  const sideLabel = cardEntry.side === 'player' ? 'PLAYER' : 'BANKER';
+  const sideLabel = cardEntry.side === 'player' ? '플레이어' : '뱅커';
   t.round.phase = 'third-card-call';
-  t.round.log.push({ type: 'call', text: `${sideLabel} ONE MORE CARD`, at: Date.now() });
+  t.round.log.push({ type: 'call', text: `${sideLabel} 원 모어 카드`, at: Date.now() });
 }
 
 function dealCalledThirdCard(t) {

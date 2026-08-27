@@ -60,17 +60,7 @@ export default function AdminPage() {
     if (!latest || latest.at <= lastSpokenAt.current || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     lastSpokenAt.current = latest.at;
     const isBetCall = latest.text === 'BET DOWN PLEASE';
-    const spoken = latest.text
-      .replace('PLAYER ONE MORE CARD', '플레이어 원 모어 카드')
-      .replace('BANKER ONE MORE CARD', '뱅커 원 모어 카드')
-      .replace('PLAYER NATURAL', '플레이어 내추럴')
-      .replace('BANKER NATURAL', '뱅커 내추럴')
-      .replace('STANDS ON', '스탠즈 온')
-      .replace('PLAYER WINS', '플레이어 윈')
-      .replace('BANKER WINS', '뱅커 윈')
-      .replace('PLAYER', '플레이어')
-      .replace('BANKER', '뱅커')
-      .replace('TIE', '타이');
+    const spoken = latest.text;
     const utterance = new SpeechSynthesisUtterance(spoken);
     utterance.lang = isBetCall ? 'en-US' : 'ko-KR';
     utterance.rate = latest.tone === 'winner' ? 0.96 : 0.9;
