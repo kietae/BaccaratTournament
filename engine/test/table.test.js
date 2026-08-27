@@ -165,7 +165,10 @@ test('hands open player-first and natural/result calls pause the reveal flow', (
 
   table.beginSqueezeForCurrentCard(tournament);
   assert.deepEqual(tournament.round.cards.map((card) => card.cardId), ['P1', 'P2', 'B1', 'B2']);
-  tournament.round.cardIndex = 1;
+  const callsBeforePlayer = tournament.round.log.length;
+  table.autoRevealCard(tournament);
+  assert.equal(tournament.round.cardIndex, 1);
+  assert.equal(tournament.round.log.length, callsBeforePlayer);
   tournament.round.cards[1].card = makeCard('5', '♥');
   tournament.round.cards[1].revealed = false;
   const playerCall = table.autoRevealCard(tournament);

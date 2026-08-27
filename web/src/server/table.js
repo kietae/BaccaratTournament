@@ -348,9 +348,8 @@ function autoRevealCard(t) {
   current.revealed = true;
   current.edge = null;
   current.pct = 1;
-  const callText = callTextFor(current);
   const done = advancePastCard(t);
-  return { current, callText, done };
+  return { current, done };
 }
 
 function squeezeProgress(t, playerId, cardId, edge, pct, grip) {
@@ -386,16 +385,8 @@ function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
   current.grip = Math.max(0.08, Math.min(0.92, Number(grip) || 0.5));
   current.revealed = true;
 
-  const callText = callTextFor(current);
-
   const done = advancePastCard(t);
-  return { current, callText, done };
-}
-
-function callTextFor(cardEntry) {
-  const rankLabel = { A: '에이스', J: '잭', Q: '퀸', K: '킹' }[cardEntry.card.rank] || cardEntry.card.rank;
-  const sideLabel = cardEntry.side === 'player' ? '플레이어' : '뱅커';
-  return `${sideLabel} ${rankLabel}`;
+  return { current, done };
 }
 
 function settleRound(t) {
