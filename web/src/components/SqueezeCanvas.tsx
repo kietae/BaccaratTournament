@@ -215,7 +215,10 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const distance = (tangent + step * 0.5 - gripCenter) / Math.max(1, spread);
         const bell = Math.exp(-0.5 * distance * distance);
-        const influence = LONG_EDGES.has(edge) ? bell : 0.42 + bell * 0.58;
+        // Playing cards are stiff: pulling one point bends the whole edge.
+        // Keep a meaningful baseline at both corners instead of letting the
+        // Gaussian fall to zero (which looked like stretching a rubber sheet).
+        const influence = LONG_EDGES.has(edge) ? 0.38 + bell * 0.62 : 0.6 + bell * 0.4;
         const pull = amount * influence;
         const foldDepth = pull * (0.48 + 0.08 * bell);
         const tipDepth = pull;
