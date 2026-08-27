@@ -275,10 +275,9 @@ function dealCalledThirdCard(t) {
   return true;
 }
 
-// Pulling 1.28 card-lengths moves the physical fold crease to roughly 72% of
-// the face. This prevents an early result before centre pips are visible.
-const SQUEEZE_REVEAL_FRAC = 1.28;
-const MAX_SQUEEZE_FRAC = 1.35;
+// The renderer maps a 94% edge pull to a roughly 72-75% crease depth.
+const SQUEEZE_REVEAL_FRAC = 0.94;
+const MAX_SQUEEZE_FRAC = 1;
 const LONG_EDGES = new Set(['left', 'right']);
 const SHORT_EDGES = new Set(['top', 'bottom']);
 

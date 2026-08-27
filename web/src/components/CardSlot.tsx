@@ -24,7 +24,7 @@ export default function CardSlot({ card, dim, scale = 1 }: { card: CardView; dim
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     function paint() {
       ctx.clearRect(0, 0, w, h);
-      if (card.revealed && card.rank && card.suit) drawCardFront(ctx, w, h, card.rank, card.suit, paint);
+      if (card.revealed && card.rank && card.suit) drawCardFront(ctx, w, h, card.rank, card.suit);
       else drawCardBack(ctx, w, h, paint);
     }
     paint();

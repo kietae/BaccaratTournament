@@ -7,11 +7,10 @@ import type { Edge } from '@/lib/types';
 interface Pt { x: number; y: number; }
 
 const LONG_EDGES = new Set<Edge>(['left', 'right']);
-// The fold crease travels only about 56% as far as the grabbed edge. Requiring
-// 1.28 card-lengths of pull puts that crease at roughly 72% of the face, so a
-// bottom squeeze cannot resolve a 7 before its centre pip is actually visible.
-const REVEAL_FRAC = 1.28;
-const MAX_PULL_FRAC = 1.35;
+// Keep the moving edge inside the canvas while the stiffer card stock carries
+// the crease to roughly 72-75% of the face.
+const REVEAL_FRAC = 0.94;
+const MAX_PULL_FRAC = 1;
 
 export interface SqueezeCanvasProps {
   mode: 'interactive' | 'remote';
@@ -46,8 +45,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     const canvas = canvasNode;
     const ctx = context;
 
-    const textureWidth = 480;
-    const textureHeight = 800;
+    const textureWidth = 880;
+    const textureHeight = 1280;
     const backTexture = document.createElement('canvas');
     const frontTexture = document.createElement('canvas');
     const mysteryTexture = document.createElement('canvas');
@@ -153,8 +152,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if (!state.dragging) return;
       const point = localPoint(event);
       state.pointer = {
-        x: clamp(point.x, -width * 0.35, width * 1.35),
-        y: clamp(point.y, -height * 0.35, height * 1.35)
+        x: clamp(point.x, 0, width),
+        y: clamp(point.y, 0, height)
       };
       if (state.edge && state.origin && !state.revealSent) {
         const pct = depth(state.edge, state.origin, state.pointer) / extentFor(state.edge, width, height);
@@ -240,7 +239,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // fold. This is a material mapping, not a stationary window into the face.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
-        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.48 + 0.08 * bell);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.78 : 0.76 + 0.04 * bell);
         const tipDepth = pull;
         if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
 
@@ -322,7 +321,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
       function drawThumb(tangent: number, thumbAngle: number) {
         const { pull, bell } = pullAt(tangent);
-        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.48 + 0.08 * bell);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.78 : 0.76 + 0.04 * bell);
         // Keep the thumb pad on the flap itself, between the crease and the
         // moving edge. Bias toward the edge so it still covers the index.
         const thumbDepth = foldDepth + (pull - foldDepth) * 0.72;
@@ -395,10 +394,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if ((current.rank && current.rank !== lastRank) || (current.suit && current.suit !== lastSuit)) {
         const front = frontTexture.getContext('2d')!;
         front.clearRect(0, 0, textureWidth, textureHeight);
-        drawCardFront(front, textureWidth, textureHeight, current.rank!, current.suit!, () => {
-          lastRank = '';
-          lastSuit = '';
-        });
+        drawCardFront(front, textureWidth, textureHeight, current.rank!, current.suit!);
         lastRank = current.rank!;
         lastSuit = current.suit!;
       }

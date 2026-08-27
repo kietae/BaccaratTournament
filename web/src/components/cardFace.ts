@@ -28,7 +28,6 @@ const FACE_RANKS = new Set(['J', 'Q', 'K']);
 
 type AssetRecord = { image: HTMLImageElement; ready: boolean; listeners: Set<() => void> };
 const assetCache = new Map<string, AssetRecord>();
-const SUIT_CODE: Record<string, string> = { '♣': 'C', '♦': 'D', '♥': 'H', '♠': 'S' };
 
 function asset(path: string, onReady?: () => void): HTMLImageElement | null {
   if (typeof Image === 'undefined') return null;
@@ -50,11 +49,6 @@ function asset(path: string, onReady?: () => void): HTMLImageElement | null {
   return record.ready ? record.image : null;
 }
 
-function cardAssetPath(rank: string, suit: string) {
-  const rankCode = rank === '10' ? 'T' : rank;
-  return `/cards/${rankCode}${SUIT_CODE[suit]}.svg`;
-}
-
 function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath();
   c.moveTo(x + r, y);
@@ -69,12 +63,7 @@ export function suitColor(suit: string): string {
   return suit === '♥' || suit === '♦' ? '#B23B3B' : '#1a1a1a';
 }
 
-export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string, onReady?: () => void) {
-  const image = asset(cardAssetPath(rank, suit), onReady);
-  if (image) {
-    c.drawImage(image, 0, 0, w, h);
-    return;
-  }
+export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string) {
   c.fillStyle = '#FBF9F4';
   c.fillRect(0, 0, w, h);
   c.strokeStyle = 'rgba(0,0,0,0.15)';
@@ -108,24 +97,33 @@ export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number,
     c.stroke();
     c.save();
     c.translate(w / 2, h / 2);
-    c.font = '700 ' + w * 0.28 + 'px Georgia, serif';
+    c.font = '700 ' + w * 0.3 + 'px Georgia, serif';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillStyle = color;
     c.globalAlpha = 0.85;
     c.fillText(rank, 0, 0);
+    c.globalAlpha = 0.62;
+    c.font = w * 0.19 + 'px Georgia, serif';
+    c.fillText(suit, 0, h * 0.16);
+    c.save();
+    c.rotate(Math.PI);
+    c.fillText(suit, 0, h * 0.16);
+    c.restore();
     c.restore();
     return;
   }
 
   function pip(fx: number, fy: number) {
-    const px = fx * w, py = fy * h, sz = w * 0.115;
+    const px = fx * w, py = fy * h;
     c.save();
     c.translate(px, py);
-    c.rotate(Math.PI / 4);
+    if (fy > 0.5) c.rotate(Math.PI);
     c.fillStyle = color;
-    roundRect(c, -sz / 2, -sz / 2, sz, sz, sz * 0.16);
-    c.fill();
+    c.font = w * 0.145 + 'px Georgia, serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(suit, 0, 0);
     c.restore();
   }
   const layout = PIP_LAYOUTS[rank] || PIP_LAYOUTS['9'];
