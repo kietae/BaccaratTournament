@@ -317,12 +317,15 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         : clamp(tangentSize * 0.1, thumbWidth * 0.52, tangentSize * 0.14);
 
       function drawThumb(tangent: number, thumbAngle: number) {
-        const tipNormal = pullAt(tangent).pull;
-        const shortEdgeInset = vertical ? 0 : thumbWidth * 0.3;
-        const thumbTip = edge === 'left' ? { x: tipNormal, y: tangent }
-          : edge === 'right' ? { x: width - tipNormal, y: tangent }
-            : edge === 'top' ? { x: tangent, y: tipNormal - shortEdgeInset }
-              : { x: tangent, y: height - tipNormal + shortEdgeInset };
+        const { pull, bell } = pullAt(tangent);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.48 + 0.08 * bell);
+        // Keep the thumb pad on the flap itself, between the crease and the
+        // moving edge. Bias toward the edge so it still covers the index.
+        const thumbDepth = foldDepth + (pull - foldDepth) * 0.72;
+        const thumbTip = edge === 'left' ? { x: thumbDepth, y: tangent }
+          : edge === 'right' ? { x: width - thumbDepth, y: tangent }
+            : edge === 'top' ? { x: tangent, y: thumbDepth }
+              : { x: tangent, y: height - thumbDepth };
         ctx.save();
         ctx.translate(thumbTip.x, thumbTip.y);
         ctx.rotate(thumbAngle);
