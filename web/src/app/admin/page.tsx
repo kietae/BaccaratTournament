@@ -28,6 +28,8 @@ export default function AdminPage() {
   const [presentation, setPresentation] = useState(false);
   const tokenRef = useRef<string | null>(null);
   const lastSpokenAt = useRef(0);
+  const lastDealtCount = useRef(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     tokenRef.current = localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -57,25 +59,55 @@ export default function AdminPage() {
     const latest = state?.log[state.log.length - 1];
     if (!latest || latest.at <= lastSpokenAt.current || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     lastSpokenAt.current = latest.at;
+    const isBetCall = latest.text === 'BET DOWN PLEASE';
     const spoken = latest.text
-      .replace('ONE MORE PLAYER', '원 모어 플레이어')
-      .replace('ONE MORE BANKER', '원 모어 뱅커')
+      .replace('PLAYER ONE MORE CARD', '플레이어 원 모어 카드')
+      .replace('BANKER ONE MORE CARD', '뱅커 원 모어 카드')
       .replace('PLAYER NATURAL', '플레이어 내추럴')
       .replace('BANKER NATURAL', '뱅커 내추럴')
+      .replace('STANDS ON', '스탠즈 온')
       .replace('PLAYER WINS', '플레이어 윈')
       .replace('BANKER WINS', '뱅커 윈')
       .replace('PLAYER', '플레이어')
       .replace('BANKER', '뱅커')
       .replace('TIE', '타이');
     const utterance = new SpeechSynthesisUtterance(spoken);
-    utterance.lang = 'ko-KR';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.08;
-    const koreanVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('ko'));
-    utterance.voice = koreanVoices.find((voice) => /sunhi|heami|yuna|female|여성/i.test(voice.name)) ?? koreanVoices[0] ?? null;
+    utterance.lang = isBetCall ? 'en-US' : 'ko-KR';
+    utterance.rate = latest.tone === 'winner' ? 0.96 : 0.9;
+    utterance.pitch = latest.tone === 'winner' ? 1.3 : 1.08;
+    const language = isBetCall ? 'en' : 'ko';
+    const matchingVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith(language));
+    utterance.voice = matchingVoices.find((voice) => /sunhi|heami|yuna|zira|samantha|female|여성/i.test(voice.name)) ?? matchingVoices[0] ?? null;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }, [state?.log]);
+
+  useEffect(() => {
+    if (!state) return;
+    if (state.phase === 'betting-wait') lastDealtCount.current = 0;
+    const dealtCount = state.cards.filter((card) => card.dealt).length;
+    if (state.phase !== 'dealing' || dealtCount <= lastDealtCount.current) return;
+    lastDealtCount.current = dealtCount;
+    const AudioCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtor) return;
+    const audio = audioContextRef.current ?? new AudioCtor();
+    audioContextRef.current = audio;
+    const duration = 0.13;
+    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * duration), audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const source = audio.createBufferSource();
+    const filter = audio.createBiquadFilter();
+    const gain = audio.createGain();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1700, audio.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(500, audio.currentTime + duration);
+    gain.gain.setValueAtTime(0.11, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
+    source.buffer = buffer;
+    source.connect(filter).connect(gain).connect(audio.destination);
+    source.start();
+  }, [state]);
 
   async function createTournament() {
     setError(null);

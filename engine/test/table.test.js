@@ -43,6 +43,8 @@ test('any edge reveals only at the practical end stop', () => {
   const revealed = table.squeezeReveal(tournament, player.id, 'P2', 'left', 1.28, 0.5);
   assert.equal(revealed.current.revealed, true);
   assert.equal(revealed.done, false);
+  assert.equal(table.completeDealerCall(tournament).done, false);
+  assert.equal(tournament.round.log.at(-1).text, 'PLAYER WINS');
   assert.equal(table.completeDealerCall(tournament).done, true);
 });
 
@@ -126,16 +128,19 @@ test('third cards are called, paused, and dealt in player then banker order', ()
   table.completeDealerCall(tournament);
   assert.equal(tournament.round.phase, 'third-card-call');
   assert.equal(tournament.round.dealIndex, 3);
-  assert.equal(tournament.round.log.at(-1).text, 'ONE MORE PLAYER');
+  assert.equal(tournament.round.log.at(-1).text, 'PLAYER ONE MORE CARD');
 
   assert.equal(table.dealCalledThirdCard(tournament), true);
   assert.equal(tournament.round.phase, 'extra-card');
   assert.equal(tournament.round.dealIndex, 4);
 
   table.squeezeReveal(tournament, player.id, 'P3', 'top', 1.28, 0.5);
+  assert.equal(tournament.round.phase, 'dealer-call');
+  assert.equal(tournament.round.log.at(-1).text, 'PLAYER 7');
+  table.completeDealerCall(tournament);
   assert.equal(tournament.round.phase, 'third-card-call');
   assert.equal(tournament.round.dealIndex, 4);
-  assert.equal(tournament.round.log.at(-1).text, 'ONE MORE BANKER');
+  assert.equal(tournament.round.log.at(-1).text, 'BANKER ONE MORE CARD');
 
   assert.equal(table.dealCalledThirdCard(tournament), true);
   assert.equal(tournament.round.dealIndex, 5);
@@ -173,7 +178,10 @@ test('hands open player-first and natural/result calls pause the reveal flow', (
   tournament.round.cards[3].card = makeCard('3', '♦');
   tournament.round.cards[3].revealed = false;
   table.autoRevealCard(tournament);
-  assert.equal(tournament.round.log.at(-1).text, 'BANKER NATURAL 8 · PLAYER WINS');
+  assert.equal(tournament.round.log.at(-1).text, 'BANKER NATURAL 8');
+  assert.equal(table.completeDealerCall(tournament).done, false);
+  assert.equal(tournament.round.log.at(-1).text, 'PLAYER WINS');
+  assert.equal(tournament.round.log.at(-1).tone, 'winner');
   assert.equal(table.completeDealerCall(tournament).done, true);
 });
 

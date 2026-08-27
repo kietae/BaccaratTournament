@@ -79,6 +79,7 @@ export interface LogEntry {
   type: 'call';
   text: string;
   at: number;
+  tone?: 'winner';
 }
 
 export interface MeView {

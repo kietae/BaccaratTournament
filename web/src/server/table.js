@@ -58,7 +58,7 @@ function freshRound(roundNo) {
     cards: [], // ordered list of card descriptors for this round
     dealIndex: -1, // last card physically placed on the table
     cardIndex: 0, // pointer into cards[] for the one currently squeezable
-    callFinishesRound: false,
+    callNextAction: 'continue', // continue | winner | finish
     result: null, // full engine.resolveRound() output (server-authoritative, hidden from clients until revealed)
     settlements: null, // Map<playerId, settledBet[]>
     log: [] // { type, text, at } caption/call log for this round
@@ -226,17 +226,28 @@ function outcomeCall(result) {
 
 function beginHandCall(t, side, finishesRound = false) {
   const total = initialTotal(t, side);
-  const natural = total >= 8 ? ' NATURAL' : '';
-  const outcome = finishesRound ? ` · ${outcomeCall(t.round.result)}` : '';
+  const qualifier = total >= 8 ? ' NATURAL' : side === 'player' && total >= 6 ? ' STANDS ON' : side === 'banker' && total === 7 ? ' STANDS ON' : '';
   t.round.phase = 'dealer-call';
-  t.round.callFinishesRound = finishesRound;
-  t.round.log.push({ type: 'call', text: `${side.toUpperCase()}${natural} ${total}${outcome}`, at: Date.now() });
+  t.round.callNextAction = finishesRound ? 'winner' : 'continue';
+  t.round.log.push({ type: 'call', text: `${side.toUpperCase()}${qualifier} ${total}`, at: Date.now() });
+}
+
+function beginThirdTotalCall(t, side, finishesRound) {
+  const total = t.round.result[side === 'player' ? 'playerTotal' : 'bankerTotal'];
+  t.round.phase = 'dealer-call';
+  t.round.callNextAction = finishesRound ? 'winner' : 'continue';
+  t.round.log.push({ type: 'call', text: `${side.toUpperCase()} ${total}`, at: Date.now() });
 }
 
 function completeDealerCall(t) {
   if (t.round.phase !== 'dealer-call') return { done: false };
-  if (t.round.callFinishesRound) {
-    t.round.callFinishesRound = false;
+  if (t.round.callNextAction === 'winner') {
+    t.round.callNextAction = 'finish';
+    t.round.log.push({ type: 'call', text: outcomeCall(t.round.result), tone: 'winner', at: Date.now() });
+    return { done: false };
+  }
+  if (t.round.callNextAction === 'finish') {
+    t.round.callNextAction = 'continue';
     t.round.phase = 'result-calc';
     return { done: true };
   }
@@ -250,7 +261,7 @@ function completeDealerCall(t) {
 function callThirdCard(t, cardEntry) {
   const sideLabel = cardEntry.side === 'player' ? 'PLAYER' : 'BANKER';
   t.round.phase = 'third-card-call';
-  t.round.log.push({ type: 'call', text: `ONE MORE ${sideLabel}`, at: Date.now() });
+  t.round.log.push({ type: 'call', text: `${sideLabel} ONE MORE CARD`, at: Date.now() });
 }
 
 function dealCalledThirdCard(t) {
@@ -311,6 +322,14 @@ function advancePastCard(t) {
     beginHandCall(t, 'banker', !next);
     return false;
   }
+  if (opened?.cardId === 'P3') {
+    beginThirdTotalCall(t, 'player', !next);
+    return false;
+  }
+  if (opened?.cardId === 'B3') {
+    beginThirdTotalCall(t, 'banker', true);
+    return false;
+  }
   if (next) {
     if (t.round.cardIndex >= 4) callThirdCard(t, next);
     else {
@@ -332,7 +351,6 @@ function autoRevealCard(t) {
   current.edge = null;
   current.pct = 1;
   const callText = callTextFor(current);
-  t.round.log.push({ type: 'call', text: callText, at: Date.now() });
   const done = advancePastCard(t);
   return { current, callText, done };
 }
@@ -371,7 +389,6 @@ function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
   current.revealed = true;
 
   const callText = callTextFor(current);
-  t.round.log.push({ type: 'call', text: callText, at: Date.now() });
 
   const done = advancePastCard(t);
   return { current, callText, done };
@@ -423,6 +440,7 @@ function startNextRound(t) {
   t.roundNo += 1;
   t.round = freshRound(t.roundNo);
   t.round.phaseEndsAt = Date.now() + BETTING_SECONDS * 1000;
+  t.round.log.push({ type: 'call', text: 'BET DOWN PLEASE', at: Date.now() });
 }
 
 function seedRoad(t, count = 3) {
