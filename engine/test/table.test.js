@@ -60,6 +60,18 @@ test('players cannot bet or confirm before the admin starts the tournament', () 
   assert.equal(tournament.status, 'lobby');
 });
 
+test('starting seeds three road games without consuming tournament rounds or chips', () => {
+  const tournament = table.createTournament({ name: 'seeded', initialChips: 10000, roundLimit: 2 });
+  const player = table.addPlayer(tournament, 'player');
+  table.startTournament(tournament);
+  assert.equal(tournament.status, 'active');
+  assert.equal(tournament.roundNo, 1);
+  assert.equal(tournament.roundHistory.length, 3);
+  assert.equal(tournament.roundHistory.every((round) => round.seeded === true), true);
+  assert.equal(player.chips, 10000);
+  assert.equal(table.roundLimitReached(tournament), false);
+});
+
 test('snapshot only marks cards through the current deal position as dealt', () => {
   const { tournament } = activeTable();
   tournament.round.cards.push(

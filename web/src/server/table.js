@@ -347,7 +347,23 @@ function startNextRound(t) {
   t.round.phaseEndsAt = Date.now() + BETTING_SECONDS * 1000;
 }
 
+function seedRoad(t, count = 3) {
+  const draw = () => t.shoe.draw();
+  for (let i = 0; i < count; i++) {
+    const p1 = draw(), b1 = draw(), p2 = draw(), b2 = draw();
+    const result = engine.resolveRound([p1, p2], [b1, b2], draw);
+    t.roundHistory.push({
+      roundNo: i - count + 1,
+      outcome: result.outcome,
+      playerTotal: result.playerTotal,
+      bankerTotal: result.bankerTotal,
+      seeded: true
+    });
+  }
+}
+
 function startTournament(t) {
+  seedRoad(t, 3);
   t.status = 'active';
   startNextRound(t);
 }
@@ -364,6 +380,6 @@ module.exports = {
   beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard,
   cardNeedsSqueeze, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
-  bigRoadSnapshot, markNextRound, startNextRound, startTournament, roundLimitReached,
+  bigRoadSnapshot, markNextRound, startNextRound, seedRoad, startTournament, roundLimitReached,
   currentBetTotal
 };

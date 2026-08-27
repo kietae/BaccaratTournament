@@ -46,9 +46,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     const textureHeight = 800;
     const backTexture = document.createElement('canvas');
     const frontTexture = document.createElement('canvas');
-    const squeezeFaceTexture = document.createElement('canvas');
     const mysteryTexture = document.createElement('canvas');
-    for (const texture of [backTexture, frontTexture, squeezeFaceTexture, mysteryTexture]) {
+    for (const texture of [backTexture, frontTexture, mysteryTexture]) {
       texture.width = textureWidth;
       texture.height = textureHeight;
     }
@@ -61,31 +60,6 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     drawMystery(mysteryTexture.getContext('2d')!, textureWidth, textureHeight);
     const thumbImage = new Image();
     thumbImage.src = '/ui/thumb.png';
-
-    function paintSqueezeFaceTexture() {
-      const squeezeContext = squeezeFaceTexture.getContext('2d')!;
-      squeezeContext.clearRect(0, 0, textureWidth, textureHeight);
-      squeezeContext.drawImage(frontTexture, 0, 0);
-
-      // Baccarat squeeze suspense comes from reading the centre pips first.
-      // Hide printed corner ranks/suits while the card is bent; the untouched
-      // face (including its indices) is only drawn after the reveal commits.
-      const inset = 8;
-      const maskWidth = 72;
-      const maskHeight = 126;
-      const corners = [
-        [inset, inset],
-        [textureWidth - inset - maskWidth, inset],
-        [inset, textureHeight - inset - maskHeight],
-        [textureWidth - inset - maskWidth, textureHeight - inset - maskHeight]
-      ];
-      squeezeContext.fillStyle = '#fff';
-      for (const [x, y] of corners) {
-        squeezeContext.beginPath();
-        squeezeContext.roundRect(x, y, maskWidth, maskHeight, 10);
-        squeezeContext.fill();
-      }
-    }
 
     let width = 1;
     let height = 1;
@@ -246,6 +220,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const step = 2;
       const folds: Pt[] = [];
       const tips: Pt[] = [];
+      const flapPath = new Path2D();
 
       function pullAt(tangent: number) {
         const distance = (tangent - gripCenter) / Math.max(1, spread);
@@ -257,10 +232,9 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         return { pull: amount * influence, bell };
       }
 
-      // A squeezed card does not uncover a flat copy of its face. The original
-      // edge moves inward while a fold remains behind it; the visible face is
-      // compressed into the underside between those two curves. Keep printed
-      // ranks readable instead of mirroring the artwork itself.
+      // Build the whole bent-face mask first. The front artwork is painted once
+      // in stable card coordinates after the loop, so pips do not stretch or
+      // slide independently as the fold deepens.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
         const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.48 + 0.08 * bell);
@@ -275,11 +249,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
           const flapLeft = Math.min(foldX, tipX);
           const flapWidth = Math.abs(tipX - foldX);
-          const sourceDepth = clamp(foldDepth / width * textureWidth, 1, textureWidth);
-          const sourceX = edge === 'left' ? 0 : textureWidth - sourceDepth;
-          const sourceY = tangent / height * textureHeight;
-          const sourceH = (step + 1) / height * textureHeight;
-          ctx.drawImage(face, sourceX, sourceY, sourceDepth, sourceH, flapLeft, tangent, flapWidth, step + 1);
+          flapPath.rect(flapLeft, tangent, flapWidth, step + 1);
           folds.push({ x: foldX, y: tangent + step * 0.5 });
           tips.push({ x: tipX, y: tangent + step * 0.5 });
         } else {
@@ -290,15 +260,16 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
           const flapTop = Math.min(foldY, tipY);
           const flapHeight = Math.abs(tipY - foldY);
-          const sourceDepth = clamp(foldDepth / height * textureHeight, 1, textureHeight);
-          const sourceY = edge === 'top' ? 0 : textureHeight - sourceDepth;
-          const sourceX = tangent / width * textureWidth;
-          const sourceW = (step + 1) / width * textureWidth;
-          ctx.drawImage(face, sourceX, sourceY, sourceW, sourceDepth, tangent, flapTop, step + 1, flapHeight);
+          flapPath.rect(tangent, flapTop, step + 1, flapHeight);
           folds.push({ x: tangent + step * 0.5, y: foldY });
           tips.push({ x: tangent + step * 0.5, y: tipY });
         }
       }
+
+      ctx.save();
+      ctx.clip(flapPath);
+      ctx.drawImage(face, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
+      ctx.restore();
 
       function strokeCurve(points: Pt[], color: string, lineWidth: number, blur = 0) {
         if (points.length < 2) return;
@@ -324,8 +295,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // corner index while squeezing a physical baccarat card. It is drawn
       // last so it genuinely occludes the bent face in both local and remote
       // (projector) views.
-      const thumbLength = clamp(Math.min(width, height) * 0.27, 48, 68);
-      const thumbWidth = thumbLength * 0.78;
+      const thumbLength = clamp(Math.min(width, height) * 0.31, 55, 76);
+      const thumbWidth = thumbLength * 0.92;
       // On a short edge the thumbs spread toward the outer corners. On a long
       // edge they sit farther inward, over the vertically inset card indices.
       const cornerInset = LONG_EDGES.has(edge)
@@ -349,10 +320,11 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           // while the joint extends naturally out beyond the lifted edge.
           ctx.drawImage(
             thumbImage,
-            -thumbLength * 1.6,
-            -thumbWidth * 0.9,
-            thumbLength * 2.05,
-            thumbWidth * 1.8
+            260, 150, 1276, 740,
+            -thumbLength * 0.86,
+            -thumbWidth * 0.66,
+            thumbLength * 1.32,
+            thumbWidth * 1.32
           );
           ctx.restore();
           return;
@@ -406,18 +378,16 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           lastRank = '';
           lastSuit = '';
         });
-        paintSqueezeFaceTexture();
         lastRank = current.rank!;
         lastSuit = current.suit!;
       }
       const face = current.rank && current.suit ? frontTexture : mysteryTexture;
-      const squeezeFace = current.rank && current.suit ? squeezeFaceTexture : mysteryTexture;
       ctx.clearRect(0, 0, width, height);
       if (current.revealed) ctx.drawImage(face, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
       else {
         ctx.drawImage(backTexture, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
         const remote = remoteGeometry();
-        if (remote) paintPeel(remote.edge, remote.origin, remote.pointer, squeezeFace);
+        if (remote) paintPeel(remote.edge, remote.origin, remote.pointer, face);
         else if (state.edge && state.origin && state.pointer) {
           if (state.returning) {
             state.pointer.x += (state.origin.x - state.pointer.x) * 0.24;
@@ -427,7 +397,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
             }
           }
           if (state.edge && state.origin && state.pointer) {
-            paintPeel(state.edge, state.origin, state.pointer, squeezeFace);
+            paintPeel(state.edge, state.origin, state.pointer, face);
             if (state.dragging && performance.now() - state.lastProgressSent > 55) {
               state.lastProgressSent = performance.now();
               const pct = depth(state.edge, state.origin, state.pointer) / extentFor(state.edge, width, height);
