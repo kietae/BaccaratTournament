@@ -32,6 +32,14 @@ export default function AdminPage() {
   const lastDealtCount = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
 
+  function getAudioContext() {
+    const AudioCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtor) return null;
+    const audio = audioContextRef.current ?? new AudioCtor();
+    audioContextRef.current = audio;
+    return audio;
+  }
+
   useEffect(() => {
     tokenRef.current = localStorage.getItem(ADMIN_TOKEN_KEY);
     const socket = getSocket();
@@ -82,25 +90,31 @@ export default function AdminPage() {
     const dealtCount = state.cards.filter((card) => card.dealt).length;
     if (state.phase !== 'dealing' || dealtCount <= lastDealtCount.current) return;
     lastDealtCount.current = dealtCount;
-    const AudioCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtor) return;
-    const audio = audioContextRef.current ?? new AudioCtor();
-    audioContextRef.current = audio;
-    const duration = 0.13;
-    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * duration), audio.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    const source = audio.createBufferSource();
-    const filter = audio.createBiquadFilter();
-    const gain = audio.createGain();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(1700, audio.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(500, audio.currentTime + duration);
-    gain.gain.setValueAtTime(0.11, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
-    source.buffer = buffer;
-    source.connect(filter).connect(gain).connect(audio.destination);
-    source.start();
+    const audio = getAudioContext();
+    if (!audio) return;
+    function playWhoosh() {
+      const duration = 0.18;
+      const buffer = audio!.createBuffer(1, Math.floor(audio!.sampleRate * duration), audio!.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i += 1) {
+        const envelope = Math.sin(Math.PI * i / data.length) * (1 - i / data.length * 0.35);
+        data[i] = (Math.random() * 2 - 1) * envelope;
+      }
+      const source = audio!.createBufferSource();
+      const filter = audio!.createBiquadFilter();
+      const gain = audio!.createGain();
+      filter.type = 'bandpass';
+      filter.Q.value = 0.8;
+      filter.frequency.setValueAtTime(2400, audio!.currentTime);
+      filter.frequency.exponentialRampToValueAtTime(650, audio!.currentTime + duration);
+      gain.gain.setValueAtTime(0.24, audio!.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio!.currentTime + duration);
+      source.buffer = buffer;
+      source.connect(filter).connect(gain).connect(audio!.destination);
+      source.start();
+    }
+    if (audio.state === 'suspended') void audio.resume().then(playWhoosh);
+    else playWhoosh();
   }, [state]);
 
   async function createTournament() {
@@ -114,6 +128,9 @@ export default function AdminPage() {
 
   async function startTournament() {
     if (!adminToken) return;
+    // Unlock Web Audio inside the button gesture before the first deal begins.
+    const audio = getAudioContext();
+    if (audio?.state === 'suspended') await audio.resume().catch(() => undefined);
     const res = await ack<{ ok: boolean; error?: string }>('admin:start', { adminToken });
     if (!res.ok) setError(res.error || '시작 실패');
   }
