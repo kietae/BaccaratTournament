@@ -11,6 +11,7 @@ const RESULT_CALC_MS = 1800;
 const PAYOUT_MS = 2400;
 const NEXT_ROUND_MS = table.NEXT_ROUND_SECONDS * 1000;
 const AUTO_REVEAL_MS = 900; // pacing between dealer-opened cards nobody bet on
+const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -86,9 +87,25 @@ function registerSocketServer(io) {
       if (!t) return;
       const { done } = table.autoRevealCard(t);
       broadcastState();
-      if (done) finishRoundAndAdvance();
-      else advanceDealerAutoReveals();
+      advanceAfterReveal(done);
     }, AUTO_REVEAL_MS);
+  }
+
+  function advanceAfterReveal(done) {
+    if (done) {
+      finishRoundAndAdvance();
+      return;
+    }
+    if (t.round.phase === 'third-card-call') {
+      t.timers.thirdCardDeal = setTimeout(() => {
+        if (!t || !table.dealCalledThirdCard(t)) return;
+        delete t.timers.thirdCardDeal;
+        broadcastState();
+        advanceDealerAutoReveals();
+      }, THIRD_CARD_CALL_MS);
+      return;
+    }
+    advanceDealerAutoReveals();
   }
 
   function finishRoundAndAdvance() {
@@ -232,8 +249,7 @@ function registerSocketServer(io) {
           try {
             const { done } = table.squeezeReveal(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
             broadcastState();
-            if (done) finishRoundAndAdvance();
-            else advanceDealerAutoReveals();
+            advanceAfterReveal(done);
           } catch {
             // Round/card changed during the brief presentation delay.
           }

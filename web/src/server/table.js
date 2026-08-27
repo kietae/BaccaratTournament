@@ -203,6 +203,21 @@ function beginSqueezeForCurrentCard(t) {
   t.round.phase = i < 4 ? 'squeeze' : 'extra-card';
 }
 
+function callThirdCard(t, cardEntry) {
+  const sideLabel = cardEntry.side === 'player' ? 'PLAYER' : 'BANKER';
+  t.round.phase = 'third-card-call';
+  t.round.log.push({ type: 'call', text: `ONE MORE ${sideLabel}`, at: Date.now() });
+}
+
+function dealCalledThirdCard(t) {
+  if (t.round.phase !== 'third-card-call') return false;
+  const current = t.round.cards[t.round.cardIndex];
+  if (!current || t.round.cardIndex < 4) return false;
+  t.round.dealIndex = t.round.cardIndex;
+  beginSqueezeForCurrentCard(t);
+  return true;
+}
+
 // Every edge can be squeezed through its full extent. 95% is treated as the
 // physical end stop so small pointer/border rounding cannot make completion
 // impossible on a phone.
@@ -237,8 +252,11 @@ function advancePastCard(t) {
   t.round.cardIndex += 1;
   const next = t.round.cards[t.round.cardIndex];
   if (next) {
-    t.round.dealIndex = Math.max(t.round.dealIndex, t.round.cardIndex);
-    beginSqueezeForCurrentCard(t);
+    if (t.round.cardIndex >= 4) callThirdCard(t, next);
+    else {
+      t.round.dealIndex = Math.max(t.round.dealIndex, t.round.cardIndex);
+      beginSqueezeForCurrentCard(t);
+    }
   }
   else t.round.phase = 'result-calc';
   return !next;
@@ -377,7 +395,7 @@ module.exports = {
   GameError,
   createTournament, addPlayer, playerByToken,
   placeBet, confirmBets, allActivePlayersConfirmed,
-  beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard,
+  beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard,
   cardNeedsSqueeze, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, startTournament, roundLimitReached,

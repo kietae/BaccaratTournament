@@ -100,3 +100,39 @@ test('initial deal places P1, B1, P2, B2 before squeeze begins', () => {
   }
   assert.deepEqual(order, ['P1', 'B1', 'P2', 'B2']);
 });
+
+test('third cards are called, paused, and dealt in player then banker order', () => {
+  const { tournament, player } = activeTable();
+  tournament.round.bets.set(player.id, {
+    items: new Map([['tie', 1000]]), confirmed: true, confirmedAt: 1
+  });
+  const entry = (cardId, side, rank) => ({
+    cardId, side, card: makeCard(rank, '♠'),
+    orientation: cardId.endsWith('3') ? 'horizontal' : 'vertical',
+    revealed: false, edge: null, pct: 0, grip: 0.5
+  });
+  tournament.round.cards = [
+    entry('P1', 'player', 'A'), entry('B1', 'banker', '2'),
+    entry('P2', 'player', 'A'), entry('B2', 'banker', '3'),
+    entry('P3', 'player', '6'), entry('B3', 'banker', '4')
+  ];
+  tournament.round.cardIndex = 3;
+  tournament.round.dealIndex = 3;
+
+  table.squeezeReveal(tournament, player.id, 'B2', 'left', 0.95, 0.5);
+  assert.equal(tournament.round.phase, 'third-card-call');
+  assert.equal(tournament.round.dealIndex, 3);
+  assert.equal(tournament.round.log.at(-1).text, 'ONE MORE PLAYER');
+
+  assert.equal(table.dealCalledThirdCard(tournament), true);
+  assert.equal(tournament.round.phase, 'extra-card');
+  assert.equal(tournament.round.dealIndex, 4);
+
+  table.squeezeReveal(tournament, player.id, 'P3', 'top', 0.95, 0.5);
+  assert.equal(tournament.round.phase, 'third-card-call');
+  assert.equal(tournament.round.dealIndex, 4);
+  assert.equal(tournament.round.log.at(-1).text, 'ONE MORE BANKER');
+
+  assert.equal(table.dealCalledThirdCard(tournament), true);
+  assert.equal(tournament.round.dealIndex, 5);
+});

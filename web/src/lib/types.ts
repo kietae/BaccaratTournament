@@ -4,6 +4,7 @@ export type Phase =
   | 'dealing'
   | 'squeeze'
   | 'extra-card'
+  | 'third-card-call'
   | 'result-calc'
   | 'payout'
   | 'next-round';

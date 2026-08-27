@@ -19,6 +19,7 @@ const PHASE_LABEL: Record<TableState['phase'], string> = {
   dealing: '딜링 중',
   squeeze: '카드 쪼기',
   'extra-card': '추가 카드',
+  'third-card-call': '추가 카드 콜',
   'result-calc': '결과 계산 중',
   payout: '정산',
   'next-round': '다음 라운드 준비'
