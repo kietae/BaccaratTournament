@@ -58,6 +58,7 @@ function freshRound(roundNo) {
     cards: [], // ordered list of card descriptors for this round
     dealIndex: -1, // last card physically placed on the table
     cardIndex: 0, // pointer into cards[] for the one currently squeezable
+    callFinishesRound: false,
     result: null, // full engine.resolveRound() output (server-authoritative, hidden from clients until revealed)
     settlements: null, // Map<playerId, settledBet[]>
     log: [] // { type, text, at } caption/call log for this round
@@ -199,8 +200,45 @@ function dealNextInitialCard(t) {
 }
 
 function beginSqueezeForCurrentCard(t) {
+  // Deal order is alternating, but baccarat hands are opened player-first.
+  if (t.round.cardIndex === 0 && t.round.cards[1]?.cardId === 'B1') {
+    const byId = new Map(t.round.cards.map((card) => [card.cardId, card]));
+    t.round.cards = ['P1', 'P2', 'B1', 'B2', 'P3', 'B3'].map((id) => byId.get(id)).filter(Boolean);
+  }
   const i = t.round.cardIndex;
   t.round.phase = i < 4 ? 'squeeze' : 'extra-card';
+}
+
+function initialTotal(t, side) {
+  const cards = t.round.result[side === 'player' ? 'playerCards' : 'bankerCards'];
+  return engine.handValue(cards.slice(0, 2));
+}
+
+function outcomeCall(result) {
+  return result.outcome === 'player' ? 'PLAYER WINS' : result.outcome === 'banker' ? 'BANKER WINS' : 'TIE';
+}
+
+function beginHandCall(t, side, finishesRound = false) {
+  const total = initialTotal(t, side);
+  const natural = total >= 8 ? ' NATURAL' : '';
+  const outcome = finishesRound ? ` · ${outcomeCall(t.round.result)}` : '';
+  t.round.phase = 'dealer-call';
+  t.round.callFinishesRound = finishesRound;
+  t.round.log.push({ type: 'call', text: `${side.toUpperCase()}${natural} ${total}${outcome}`, at: Date.now() });
+}
+
+function completeDealerCall(t) {
+  if (t.round.phase !== 'dealer-call') return { done: false };
+  if (t.round.callFinishesRound) {
+    t.round.callFinishesRound = false;
+    t.round.phase = 'result-calc';
+    return { done: true };
+  }
+  const next = t.round.cards[t.round.cardIndex];
+  if (!next) return { done: true };
+  if (t.round.cardIndex >= 4) callThirdCard(t, next);
+  else beginSqueezeForCurrentCard(t);
+  return { done: false };
 }
 
 function callThirdCard(t, cardEntry) {
@@ -249,8 +287,17 @@ function cardNeedsSqueeze(t, cardEntry) {
 }
 
 function advancePastCard(t) {
+  const opened = t.round.cards[t.round.cardIndex];
   t.round.cardIndex += 1;
   const next = t.round.cards[t.round.cardIndex];
+  if (opened?.cardId === 'P2') {
+    beginHandCall(t, 'player');
+    return false;
+  }
+  if (opened?.cardId === 'B2') {
+    beginHandCall(t, 'banker', !next);
+    return false;
+  }
   if (next) {
     if (t.round.cardIndex >= 4) callThirdCard(t, next);
     else {
@@ -395,7 +442,7 @@ module.exports = {
   GameError,
   createTournament, addPlayer, playerByToken,
   placeBet, confirmBets, allActivePlayersConfirmed,
-  beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard,
+  beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard, completeDealerCall,
   cardNeedsSqueeze, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, startTournament, roundLimitReached,

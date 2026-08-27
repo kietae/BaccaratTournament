@@ -12,6 +12,7 @@ const PAYOUT_MS = 2400;
 const NEXT_ROUND_MS = table.NEXT_ROUND_SECONDS * 1000;
 const AUTO_REVEAL_MS = 900; // pacing between dealer-opened cards nobody bet on
 const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
+const HAND_CALL_MS = 1500; // leave room for the spoken hand total / result
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -94,6 +95,16 @@ function registerSocketServer(io) {
   function advanceAfterReveal(done) {
     if (done) {
       finishRoundAndAdvance();
+      return;
+    }
+    if (t.round.phase === 'dealer-call') {
+      t.timers.dealerCall = setTimeout(() => {
+        if (!t) return;
+        delete t.timers.dealerCall;
+        const completed = table.completeDealerCall(t);
+        broadcastState();
+        advanceAfterReveal(completed.done);
+      }, HAND_CALL_MS);
       return;
     }
     if (t.round.phase === 'third-card-call') {

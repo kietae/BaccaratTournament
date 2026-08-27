@@ -120,6 +120,9 @@ test('third cards are called, paused, and dealt in player then banker order', ()
   tournament.round.dealIndex = 3;
 
   table.squeezeReveal(tournament, player.id, 'B2', 'left', 0.95, 0.5);
+  assert.equal(tournament.round.phase, 'dealer-call');
+  assert.equal(tournament.round.log.at(-1).text, 'BANKER 6');
+  table.completeDealerCall(tournament);
   assert.equal(tournament.round.phase, 'third-card-call');
   assert.equal(tournament.round.dealIndex, 3);
   assert.equal(tournament.round.log.at(-1).text, 'ONE MORE PLAYER');
@@ -135,4 +138,37 @@ test('third cards are called, paused, and dealt in player then banker order', ()
 
   assert.equal(table.dealCalledThirdCard(tournament), true);
   assert.equal(tournament.round.dealIndex, 5);
+});
+
+test('hands open player-first and natural/result calls pause the reveal flow', () => {
+  const { tournament } = activeTable();
+  tournament.round.cards = [
+    { cardId: 'P1' }, { cardId: 'B1' }, { cardId: 'P2' }, { cardId: 'B2' }
+  ];
+  tournament.round.cardIndex = 0;
+  tournament.round.dealIndex = 3;
+  tournament.round.result = {
+    playerCards: [makeCard('4', '♠'), makeCard('5', '♥')],
+    bankerCards: [makeCard('5', '♣'), makeCard('3', '♦')],
+    playerTotal: 9, bankerTotal: 8, outcome: 'player'
+  };
+
+  table.beginSqueezeForCurrentCard(tournament);
+  assert.deepEqual(tournament.round.cards.map((card) => card.cardId), ['P1', 'P2', 'B1', 'B2']);
+  tournament.round.cardIndex = 1;
+  tournament.round.cards[1].card = makeCard('5', '♥');
+  tournament.round.cards[1].revealed = false;
+  const playerCall = table.autoRevealCard(tournament);
+  assert.equal(playerCall.done, false);
+  assert.equal(tournament.round.phase, 'dealer-call');
+  assert.equal(tournament.round.log.at(-1).text, 'PLAYER NATURAL 9');
+  table.completeDealerCall(tournament);
+  assert.equal(tournament.round.phase, 'squeeze');
+
+  tournament.round.cardIndex = 3;
+  tournament.round.cards[3].card = makeCard('3', '♦');
+  tournament.round.cards[3].revealed = false;
+  table.autoRevealCard(tournament);
+  assert.equal(tournament.round.log.at(-1).text, 'BANKER NATURAL 8 · PLAYER WINS');
+  assert.equal(table.completeDealerCall(tournament).done, true);
 });

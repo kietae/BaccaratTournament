@@ -12,7 +12,7 @@ import RoundResultCallout from '@/components/RoundResultCallout';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
   'betting-wait': '베팅 중', 'betting-confirmed': '베팅 마감', dealing: '카드 배분',
-  squeeze: '카드 스퀴즈', 'extra-card': '추가 카드', 'third-card-call': '추가 카드 콜', 'result-calc': '결과 확인',
+  squeeze: '카드 스퀴즈', 'extra-card': '추가 카드', 'third-card-call': '추가 카드 콜', 'dealer-call': '딜러 콜', 'result-calc': '결과 확인',
   payout: '정산', 'next-round': '다음 라운드 준비'
 };
 
@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [presentation, setPresentation] = useState(false);
   const tokenRef = useRef<string | null>(null);
+  const lastSpokenAt = useRef(0);
 
   useEffect(() => {
     tokenRef.current = localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -51,6 +52,30 @@ export default function AdminPage() {
     if (!state?.joinCode) return;
     QRCode.toDataURL(`${window.location.origin}/join?code=${state.joinCode}`, { margin: 1, width: 320 }).then(setQr).catch(() => setQr(null));
   }, [state?.joinCode]);
+
+  useEffect(() => {
+    const latest = state?.log[state.log.length - 1];
+    if (!latest || latest.at <= lastSpokenAt.current || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    lastSpokenAt.current = latest.at;
+    const spoken = latest.text
+      .replace('ONE MORE PLAYER', '원 모어 플레이어')
+      .replace('ONE MORE BANKER', '원 모어 뱅커')
+      .replace('PLAYER NATURAL', '플레이어 내추럴')
+      .replace('BANKER NATURAL', '뱅커 내추럴')
+      .replace('PLAYER WINS', '플레이어 윈')
+      .replace('BANKER WINS', '뱅커 윈')
+      .replace('PLAYER', '플레이어')
+      .replace('BANKER', '뱅커')
+      .replace('TIE', '타이');
+    const utterance = new SpeechSynthesisUtterance(spoken);
+    utterance.lang = 'ko-KR';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.08;
+    const koreanVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('ko'));
+    utterance.voice = koreanVoices.find((voice) => /sunhi|heami|yuna|female|여성/i.test(voice.name)) ?? koreanVoices[0] ?? null;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }, [state?.log]);
 
   async function createTournament() {
     setError(null);
@@ -126,7 +151,7 @@ function TableStage({ state, activeCard }: { state: TableState; activeCard: Card
   const squeezeVisible = activeCard && (state.phase === 'squeeze' || state.phase === 'extra-card');
   return <section className="rounded-3xl border border-emerald-700/30 bg-[radial-gradient(circle_at_top,#16543d,#08251a_70%)] p-5 lg:p-8 min-h-[520px] shadow-2xl flex flex-col">
     <div data-testid={resultVisible ? 'result-hands' : undefined} className="flex justify-center gap-10 lg:gap-20"><AdminCardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={resultVisible ? 1.4 : 1} /><AdminCardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={resultVisible ? 1.4 : 1} /></div>
-    <div className="flex-1 flex items-center justify-center py-5">{state.phase === 'third-card-call' ? <div className="text-center animate-pulse"><p className="text-sm tracking-[0.3em] text-amber-300">DEALER CALL</p><p className="mt-3 text-4xl lg:text-6xl font-black text-white drop-shadow-[0_0_24px_rgba(251,191,36,0.55)]">{state.log[state.log.length - 1]?.text}</p></div> : squeezeVisible ? <div className="flex flex-col items-center gap-3"><div className="text-center"><p className="text-xs tracking-[0.2em] text-amber-400 uppercase">Live Squeeze</p><p className="text-lg font-bold text-white">{state.squeezerNickname ?? '딜러'} · {activeCard.side === 'player' ? '플레이어' : '뱅커'} {activeCard.cardId.slice(-1)}번째 카드</p></div><div data-testid="admin-squeeze-stage" className="w-[240px] h-[350px] lg:w-[280px] lg:h-[405px] rounded-2xl overflow-hidden border border-amber-400/40 shadow-[0_24px_70px_rgba(0,0,0,0.55)]"><SqueezeCanvas key={activeCard.cardId} mode="remote" revealed={activeCard.revealed} rank={activeCard.rank} suit={activeCard.suit} remoteEdge={activeCard.edge} remotePct={activeCard.pct} remoteGrip={activeCard.grip} /></div></div> : resultVisible && state.result ? <div data-testid="admin-round-result"><RoundResultCallout result={state.result} large /></div> : <div className="text-center text-emerald-100/70"><div className="text-3xl font-bold">{PHASE_LABEL[state.phase]}</div><p className="mt-2 text-sm">참가자 {state.playerCount}명 · 연결 {state.players.filter((p) => p.connected).length}명</p></div>}</div>
+    <div className="flex-1 flex items-center justify-center py-5">{state.phase === 'third-card-call' || state.phase === 'dealer-call' ? <div className="text-center animate-pulse"><p className="text-sm tracking-[0.3em] text-amber-300">DEALER CALL</p><p className="mt-3 text-4xl lg:text-6xl font-black text-white drop-shadow-[0_0_24px_rgba(251,191,36,0.55)]">{state.log[state.log.length - 1]?.text}</p></div> : squeezeVisible ? <div className="flex flex-col items-center gap-3"><div className="text-center"><p className="text-xs tracking-[0.2em] text-amber-400 uppercase">Live Squeeze</p><p className="text-lg font-bold text-white">{state.squeezerNickname ?? '딜러'} · {activeCard.side === 'player' ? '플레이어' : '뱅커'} {activeCard.cardId.slice(-1)}번째 카드</p></div><div data-testid="admin-squeeze-stage" className="w-[240px] h-[350px] lg:w-[280px] lg:h-[405px] rounded-2xl overflow-hidden border border-amber-400/40 shadow-[0_24px_70px_rgba(0,0,0,0.55)]"><SqueezeCanvas key={activeCard.cardId} mode="remote" revealed={activeCard.revealed} rank={activeCard.rank} suit={activeCard.suit} remoteEdge={activeCard.edge} remotePct={activeCard.pct} remoteGrip={activeCard.grip} /></div></div> : resultVisible && state.result ? <div data-testid="admin-round-result"><RoundResultCallout result={state.result} large /></div> : <div className="text-center text-emerald-100/70"><div className="text-3xl font-bold">{PHASE_LABEL[state.phase]}</div><p className="mt-2 text-sm">참가자 {state.playerCount}명 · 연결 {state.players.filter((p) => p.connected).length}명</p></div>}</div>
   </section>;
 }
 
