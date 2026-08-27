@@ -19,6 +19,7 @@ function activeTable() {
     cardId: 'P1', side: 'player', card: makeCard('7', '♠'), orientation: 'vertical',
     revealed: false, edge: null, pct: 0, grip: 0.5
   }];
+  tournament.round.dealIndex = 0;
   tournament.round.cardIndex = 0;
   tournament.round.result = {
     playerCards: [makeCard('7', '♠'), makeCard('K', '♥')],
@@ -36,10 +37,10 @@ test('squeeze progress stores card-relative depth and grip safely', () => {
   assert.equal(card.grip, 0.8);
 });
 
-test('any edge reveals at 50% of the full card extent', () => {
+test('any edge reveals only at the practical end stop', () => {
   const { tournament, player } = activeTable();
-  assert.throws(() => table.squeezeReveal(tournament, player.id, 'P1', 'left', 0.499, 0.5));
-  const revealed = table.squeezeReveal(tournament, player.id, 'P1', 'left', 0.5, 0.5);
+  assert.throws(() => table.squeezeReveal(tournament, player.id, 'P1', 'left', 0.949, 0.5));
+  const revealed = table.squeezeReveal(tournament, player.id, 'P1', 'left', 0.95, 0.5);
   assert.equal(revealed.current.revealed, true);
   assert.equal(revealed.done, true);
 });
@@ -51,6 +52,14 @@ test('a disconnected squeezer no longer blocks dealer auto-reveal', () => {
   assert.equal(table.cardNeedsSqueeze(tournament, tournament.round.cards[0]), false);
 });
 
+test('players cannot bet or confirm before the admin starts the tournament', () => {
+  const tournament = table.createTournament({ name: 'lobby', initialChips: 10000, roundLimit: 1 });
+  const player = table.addPlayer(tournament, 'waiting');
+  assert.throws(() => table.placeBet(tournament, player.id, 'player', 1000));
+  assert.throws(() => table.confirmBets(tournament, player.id));
+  assert.equal(tournament.status, 'lobby');
+});
+
 test('snapshot only marks cards through the current deal position as dealt', () => {
   const { tournament } = activeTable();
   tournament.round.cards.push(
@@ -59,6 +68,23 @@ test('snapshot only marks cards through the current deal position as dealt', () 
     { cardId: 'P3', side: 'player', card: makeCard('3', 'â™ '), orientation: 'horizontal', revealed: false, edge: null, pct: 0, grip: 0.5 }
   );
   tournament.round.cardIndex = 1;
+  tournament.round.dealIndex = 1;
   const snapshot = buildSnapshot(tournament, null);
   assert.deepEqual(snapshot.cards.map((card) => card.dealt), [true, true, false, false]);
+});
+
+test('initial deal places P1, B1, P2, B2 before squeeze begins', () => {
+  const { tournament } = activeTable();
+  tournament.round.cards = [
+    { cardId: 'P1' }, { cardId: 'B1' }, { cardId: 'P2' }, { cardId: 'B2' }
+  ];
+  tournament.round.phase = 'dealing';
+  tournament.round.dealIndex = -1;
+  const order = [];
+  for (let i = 0; i < 4; i++) {
+    const finished = table.dealNextInitialCard(tournament);
+    order.push(tournament.round.cards[tournament.round.dealIndex].cardId);
+    assert.equal(finished, i === 3);
+  }
+  assert.deepEqual(order, ['P1', 'B1', 'P2', 'B2']);
 });

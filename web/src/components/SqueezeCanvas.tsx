@@ -7,7 +7,7 @@ import type { Edge } from '@/lib/types';
 interface Pt { x: number; y: number; }
 
 const LONG_EDGES = new Set<Edge>(['left', 'right']);
-const REVEAL_FRAC = 0.5;
+const REVEAL_FRAC = 0.95;
 
 export interface SqueezeCanvasProps {
   mode: 'interactive' | 'remote';

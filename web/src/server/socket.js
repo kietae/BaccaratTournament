@@ -3,7 +3,10 @@
 const table = require('./table');
 const { buildSnapshot } = require('./serialize');
 
-const DEALING_MS = 1600;
+const FIRST_DEAL_MS = 180;
+const DEAL_STEP_MS = 320;
+const DEAL_SETTLE_MS = 260;
+const SQUEEZE_SETTLE_MS = 100;
 const RESULT_CALC_MS = 1800;
 const PAYOUT_MS = 2400;
 const NEXT_ROUND_MS = table.NEXT_ROUND_SECONDS * 1000;
@@ -41,20 +44,31 @@ function registerSocketServer(io) {
   }
 
   function advanceFromBetting() {
-    if (!t || t.round.phase !== 'betting-wait') return;
+    if (!t || t.status !== 'active' || t.round.phase !== 'betting-wait') return;
     clearTimers();
     table.beginDealing(t);
     broadcastState();
+    t.timers.dealing = setTimeout(dealNextInitialCard, FIRST_DEAL_MS);
+  }
+
+  function dealNextInitialCard() {
+    if (!t || t.round.phase !== 'dealing') return;
+    const finished = table.dealNextInitialCard(t);
+    broadcastState();
     t.timers.dealing = setTimeout(() => {
-      if (!t) return;
+      if (!t || t.round.phase !== 'dealing') return;
+      if (!finished) {
+        dealNextInitialCard();
+        return;
+      }
       table.beginSqueezeForCurrentCard(t);
       broadcastState();
       advanceDealerAutoReveals();
-    }, DEALING_MS);
+    }, finished ? DEAL_SETTLE_MS : DEAL_STEP_MS);
   }
 
   function maybeAdvanceEarly() {
-    if (t && t.round.phase === 'betting-wait' && table.allActivePlayersConfirmed(t)) {
+    if (t && t.status === 'active' && t.round.phase === 'betting-wait' && table.allActivePlayersConfirmed(t)) {
       advanceFromBetting();
     }
   }
@@ -206,11 +220,24 @@ function registerSocketServer(io) {
       const playerId = socketPlayer.get(socket.id);
       if (!t || !playerId || !payload) { ack?.({ ok: false }); return; }
       try {
-        const { done } = table.squeezeReveal(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
+        if (t.timers.squeezeReveal) { ack?.({ ok: false }); return; }
+        if ((Number(payload.pct) || 0) < 0.95) { ack?.({ ok: false, error: '카드를 끝까지 열어야 공개됩니다' }); return; }
+        // Hold the fully squeezed pose for one beat before flipping the card.
+        table.squeezeProgress(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
         broadcastState();
-        if (done) finishRoundAndAdvance();
-        else advanceDealerAutoReveals();
         ack?.({ ok: true });
+        t.timers.squeezeReveal = setTimeout(() => {
+          if (!t) return;
+          delete t.timers.squeezeReveal;
+          try {
+            const { done } = table.squeezeReveal(t, playerId, payload.cardId, payload.edge, payload.pct, payload.grip);
+            broadcastState();
+            if (done) finishRoundAndAdvance();
+            else advanceDealerAutoReveals();
+          } catch {
+            // Round/card changed during the brief presentation delay.
+          }
+        }, SQUEEZE_SETTLE_MS);
       } catch (e) {
         ack?.({ ok: false, error: e.message });
       }

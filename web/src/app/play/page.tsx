@@ -101,15 +101,33 @@ export default function PlayPage() {
         <div className="text-center text-sm text-amber-200 bg-black/50 rounded-full py-1 px-3 mx-auto">{caption}</div>
       )}
 
-      {state.phase === 'betting-wait' && <BettingPhase state={state} me={me} />}
+      {state.status === 'lobby' && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
+          <p className="font-semibold text-amber-200">관리자가 토너먼트를 시작하기를 기다리는 중</p>
+          <p className="text-xs text-zinc-500">이 화면을 그대로 유지해 주세요.</p>
+        </div>
+      )}
 
-      {(state.phase === 'betting-confirmed' || state.phase === 'dealing') && (
+      {state.status === 'active' && state.phase === 'betting-wait' && <BettingPhase state={state} me={me} />}
+
+      {state.phase === 'betting-confirmed' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-400">
           <p className="text-sm">{PHASE_LABEL[state.phase]}...</p>
           <div className="flex gap-2">
             {['P1', 'B1', 'P2', 'B2'].map((id) => (
               <div key={id} className="w-11 h-16 rounded-md bg-gradient-to-br from-purple-950 to-black border border-amber-600/40" />
             ))}
+          </div>
+        </div>
+      )}
+
+      {state.phase === 'dealing' && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 text-zinc-400">
+          <p className="text-sm">플레이어 → 뱅커 순서로 카드를 배분합니다</p>
+          <div className="flex justify-center gap-6">
+            <CardRow label="플레이어" cards={state.cards.filter((c) => c.side === 'player')} />
+            <CardRow label="뱅커" cards={state.cards.filter((c) => c.side === 'banker')} />
           </div>
         </div>
       )}
@@ -181,7 +199,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
         const statusText = !activeCard.needsSqueeze
           ? '— 아무도 베팅하지 않아 딜러가 공개합니다'
           : iCanSqueezeThisCard
-            ? '— 어느 변이든 절반 이상 열면 바로 공개'
+            ? '— 어느 변이든 끝까지 열면 공개'
             : '쪼기 관전 중';
         return (
         <div className="flex flex-col items-center gap-2 mt-2">

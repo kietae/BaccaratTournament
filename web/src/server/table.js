@@ -56,6 +56,7 @@ function freshRound(roundNo) {
     bets: new Map(), // playerId -> { items: Map<type, amount>, confirmed, confirmedAt }
     squeezerId: null,
     cards: [], // ordered list of card descriptors for this round
+    dealIndex: -1, // last card physically placed on the table
     cardIndex: 0, // pointer into cards[] for the one currently squeezable
     result: null, // full engine.resolveRound() output (server-authoritative, hidden from clients until revealed)
     settlements: null, // Map<playerId, settledBet[]>
@@ -103,6 +104,7 @@ function ensureBetEntry(t, playerId) {
 class GameError extends Error {}
 
 function placeBet(t, playerId, type, amount) {
+  if (t.status !== 'active') throw new GameError('관리자가 토너먼트를 시작하지 않았습니다');
   if (t.round.phase !== 'betting-wait') throw new GameError('베팅 시간이 아닙니다');
   if (!BET_TYPE_SET.has(type)) throw new GameError('알 수 없는 베팅 종류');
   const amt = Math.max(0, Math.floor(Number(amount) || 0));
@@ -122,6 +124,7 @@ function placeBet(t, playerId, type, amount) {
 }
 
 function confirmBets(t, playerId) {
+  if (t.status !== 'active') throw new GameError('관리자가 토너먼트를 시작하지 않았습니다');
   if (t.round.phase !== 'betting-wait') throw new GameError('베팅 시간이 아닙니다');
   const bet = ensureBetEntry(t, playerId);
   if (!bet.confirmed) {
@@ -185,7 +188,14 @@ function beginDealing(t) {
     c.grip = 0.5;
   });
   t.round.cards = cards;
+  t.round.dealIndex = -1;
   t.round.cardIndex = 0;
+}
+
+function dealNextInitialCard(t) {
+  if (t.round.phase !== 'dealing') return true;
+  t.round.dealIndex = Math.min(3, t.round.dealIndex + 1);
+  return t.round.dealIndex >= 3;
 }
 
 function beginSqueezeForCurrentCard(t) {
@@ -193,8 +203,9 @@ function beginSqueezeForCurrentCard(t) {
   t.round.phase = i < 4 ? 'squeeze' : 'extra-card';
 }
 
-// Every edge can be squeezed through its full extent. Crossing half of the
-// relevant card dimension confirms the reveal immediately.
+// Every edge can be squeezed through its full extent. 95% is treated as the
+// physical end stop so small pointer/border rounding cannot make completion
+// impossible on a phone.
 const LONG_EDGES = new Set(['left', 'right']);
 const SHORT_EDGES = new Set(['top', 'bottom']);
 
@@ -225,7 +236,10 @@ function cardNeedsSqueeze(t, cardEntry) {
 function advancePastCard(t) {
   t.round.cardIndex += 1;
   const next = t.round.cards[t.round.cardIndex];
-  if (next) beginSqueezeForCurrentCard(t);
+  if (next) {
+    t.round.dealIndex = Math.max(t.round.dealIndex, t.round.cardIndex);
+    beginSqueezeForCurrentCard(t);
+  }
   else t.round.phase = 'result-calc';
   return !next;
 }
@@ -270,8 +284,8 @@ function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
   if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
   if (!LONG_EDGES.has(edge) && !SHORT_EDGES.has(edge)) throw new GameError('알 수 없는 변');
-  if ((Number(pct) || 0) < 0.5) {
-    throw new GameError('카드를 절반 이상 열어야 공개됩니다');
+  if ((Number(pct) || 0) < 0.95) {
+    throw new GameError('카드를 끝까지 열어야 공개됩니다');
   }
   current.edge = edge;
   current.pct = Math.max(0, Math.min(1, Number(pct) || 0));
@@ -347,7 +361,7 @@ module.exports = {
   GameError,
   createTournament, addPlayer, playerByToken,
   placeBet, confirmBets, allActivePlayersConfirmed,
-  beginDealing, beginSqueezeForCurrentCard,
+  beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard,
   cardNeedsSqueeze, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, startTournament, roundLimitReached,

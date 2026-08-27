@@ -81,7 +81,7 @@ function buildSnapshot(t, forPlayerId) {
     squeezerNickname: squeezer ? squeezer.nickname : null,
     isSqueezer: forPlayerId != null && forPlayerId === round.squeezerId,
     cards: round.cards.map((entry, i) =>
-      cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.cardIndex)
+      cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.dealIndex)
     ),
     result: round.result && round.cards.every((c) => c.revealed)
       ? {
