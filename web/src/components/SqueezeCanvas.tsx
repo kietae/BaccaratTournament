@@ -249,7 +249,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
 
       // A squeezed card does not uncover a flat copy of its face. The original
       // edge moves inward while a fold remains behind it; the visible face is
-      // the mirrored underside between those two curves.
+      // compressed into the underside between those two curves. Keep printed
+      // ranks readable instead of mirroring the artwork itself.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
         const foldDepth = pull * (0.48 + 0.08 * bell);
@@ -268,11 +269,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           const sourceX = edge === 'left' ? 0 : textureWidth - sourceDepth;
           const sourceY = tangent / height * textureHeight;
           const sourceH = (step + 1) / height * textureHeight;
-          ctx.save();
-          ctx.translate(flapLeft * 2 + flapWidth, 0);
-          ctx.scale(-1, 1);
           ctx.drawImage(face, sourceX, sourceY, sourceDepth, sourceH, flapLeft, tangent, flapWidth, step + 1);
-          ctx.restore();
           folds.push({ x: foldX, y: tangent + step * 0.5 });
           tips.push({ x: tipX, y: tangent + step * 0.5 });
         } else {
@@ -287,11 +284,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           const sourceY = edge === 'top' ? 0 : textureHeight - sourceDepth;
           const sourceX = tangent / width * textureWidth;
           const sourceW = (step + 1) / width * textureWidth;
-          ctx.save();
-          ctx.translate(0, flapTop * 2 + flapHeight);
-          ctx.scale(1, -1);
           ctx.drawImage(face, sourceX, sourceY, sourceW, sourceDepth, tangent, flapTop, step + 1, flapHeight);
-          ctx.restore();
           folds.push({ x: tangent + step * 0.5, y: foldY });
           tips.push({ x: tangent + step * 0.5, y: tipY });
         }
