@@ -6,8 +6,7 @@ import { CHIP_DENOMS, formatKRW } from '@/lib/chips';
 import ChipStack from './ChipStack';
 import type { BetType, MeView } from '@/lib/types';
 
-const PLAYER_OPTIONS: BetType[] = ['playerPair', 'player7TwoCard', 'player7ThreeCard'];
-const CENTER_OPTIONS: BetType[] = ['comboP7B6'];
+const PLAYER_OPTIONS: BetType[] = ['playerPair', 'player7TwoCard', 'player7ThreeCard', 'comboP7B6'];
 const BANKER_OPTIONS: BetType[] = ['bankerPair', 'banker6TwoCard', 'banker6ThreeCard'];
 
 export default function BettingBoard({ me, locked, onPlaceBet, onClearBet, onConfirm }: {
@@ -54,7 +53,7 @@ export default function BettingBoard({ me, locked, onPlaceBet, onClearBet, onCon
       <div className="flex items-center justify-between px-1 text-sm text-zinc-300"><span>보유 칩 {formatKRW(remaining)}</span><span>베팅 합계 {formatKRW(me.betTotal)}</span></div>
       <div className="betting-zones grid grid-cols-[1fr_0.72fr_1fr] gap-1.5">
         <section className="bet-zone bet-zone-player">{betButton('player', true)}<div className="bet-options-grid">{PLAYER_OPTIONS.map((type) => betButton(type))}</div></section>
-        <section className="bet-zone bet-zone-center">{betButton('tie', true)}<div className="bet-options-grid bet-options-center">{CENTER_OPTIONS.map((type) => betButton(type))}</div></section>
+        <section className="bet-zone bet-zone-center">{betButton('tie', true)}</section>
         <section className="bet-zone bet-zone-banker">{betButton('banker', true)}<div className="bet-options-grid">{BANKER_OPTIONS.map((type) => betButton(type))}</div></section>
       </div>
       <p className="text-[10px] text-center text-amber-100/60">플레이어·뱅커는 한 곳만 선택 · 옵션벳은 스퀴즈 권한 없음</p>

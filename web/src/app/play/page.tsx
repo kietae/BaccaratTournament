@@ -100,6 +100,7 @@ export default function PlayPage() {
 
   const activeCard = state.cards.find((c) => !c.revealed) || null;
   const isSqueezingPhase = state.phase === 'squeeze' || state.phase === 'extra-card';
+  const isCardCallPhase = state.phase === 'dealer-call' || state.phase === 'third-card-call';
 
   return (
     <main className="play-shell flex-1 flex flex-col gap-3 p-3 pb-6 max-w-md mx-auto w-full">
@@ -144,6 +145,8 @@ export default function PlayPage() {
       {isSqueezingPhase && (
         <SqueezePhase state={state} activeCard={activeCard} />
       )}
+
+      {isCardCallPhase && <CardCallPhase state={state} />}
 
       {(state.phase === 'result-calc' || state.phase === 'payout' || state.phase === 'next-round') && (
         <ResultPhase state={state} me={me} onJoinNew={joinNewTournament} />
@@ -263,6 +266,21 @@ function CardRow({ label, cards, activeId }: { label: string; cards: CardView[];
           ? <CardSlot key={card.cardId} card={card} dim={card.cardId === activeId} />
           : <EmptyCardSlot key={`${prefix}${index + 1}-empty`} orientation={index === 2 ? 'horizontal' : 'vertical'} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function CardCallPhase({ state }: { state: TableState }) {
+  const latestCall = state.log[state.log.length - 1]?.text;
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-5">
+      <div className="flex justify-center gap-8">
+        <CardRow label="플레이어" cards={state.cards.filter((card) => card.side === 'player')} />
+        <CardRow label="뱅커" cards={state.cards.filter((card) => card.side === 'banker')} />
+      </div>
+      <div className="rounded-full border border-amber-300/25 bg-black/35 px-6 py-2 text-center text-lg font-black text-amber-100">
+        {latestCall}
       </div>
     </div>
   );

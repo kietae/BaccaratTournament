@@ -136,13 +136,15 @@ body {
 .bet-clear { position: absolute; z-index: 2; top: -0.25rem; right: -0.25rem; width: 1.15rem; height: 1.15rem; border-radius: 999px; background: rgb(239 68 68); color: white; font-size: 0.65rem; line-height: 1; }
 .bet-chip { width: 2.25rem; height: 2.25rem; font-size: 0.65rem; }
 
-@media (orientation: landscape) and (max-height: 600px) {
-  .play-shell { max-width: 64rem; padding: 0.35rem 0.75rem 0.5rem; gap: 0.35rem; }
+@media (orientation: landscape) {
+  .play-shell { max-width: 64rem !important; padding: 0.35rem 0.75rem 0.5rem; gap: 0.35rem; }
   .play-road { display: none; }
   .betting-board { gap: 0.3rem; }
+  .betting-zones { grid-template-columns: 1.25fr 0.5fr 1.25fr; }
   .bet-zone { padding: 0.28rem; border-radius: 0.8rem; }
-  .bet-main-button { min-height: 3.7rem; }
-  .bet-option-button { min-height: 2.7rem; }
+  .bet-main-button { min-height: 3.15rem; }
+  .bet-option-button { min-height: 2.45rem; }
+  .bet-zone-player .bet-options-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .bet-controls { margin-top: 0.1rem; }
   .bet-chip { width: 2rem; height: 2rem; font-size: 0.58rem; }
   .bet-actions button { padding-top: 0.45rem; padding-bottom: 0.45rem; white-space: nowrap; }
@@ -150,5 +152,5 @@ body {
 
 @media (orientation: portrait) {
   .betting-zones { grid-template-columns: 1fr 0.78fr 1fr; }
-  .bet-options-grid { grid-template-columns: 1fr; }
+  .bet-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
