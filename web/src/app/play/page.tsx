@@ -98,11 +98,23 @@ export default function PlayPage() {
     router.replace('/join');
   }
 
+  async function enterLandscape() {
+    await document.documentElement.requestFullscreen?.().catch(() => undefined);
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (mode: 'landscape') => Promise<void> };
+    await orientation.lock?.('landscape').catch(() => undefined);
+  }
+
   const activeCard = state.cards.find((c) => !c.revealed) || null;
   const isSqueezingPhase = state.phase === 'squeeze' || state.phase === 'extra-card';
   const isCardCallPhase = state.phase === 'dealer-call' || state.phase === 'third-card-call';
 
   return (
+    <>
+    <div className="landscape-gate fixed inset-0 z-50 flex-col items-center justify-center gap-5 bg-[radial-gradient(circle_at_top,#34204e,#0b0a12_68%)] p-8 text-center">
+      <div className="rotate-phone" aria-hidden="true">📱</div>
+      <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">토너먼트 게임은 가로모드 전용입니다.</p></div>
+      <button type="button" onClick={enterLandscape} className="rounded-xl bg-amber-400 px-6 py-3 font-black text-zinc-950 active:scale-[0.98]">가로모드로 전환</button>
+    </div>
     <main className="play-shell flex-1 flex flex-col gap-3 p-3 pb-6 max-w-md mx-auto w-full">
       <TopBar state={state} />
       <div className="play-road"><BigRoadGrid road={state.bigRoad} /></div>
@@ -152,6 +164,7 @@ export default function PlayPage() {
         <ResultPhase state={state} me={me} onJoinNew={joinNewTournament} />
       )}
     </main>
+    </>
   );
 }
 
