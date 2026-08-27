@@ -93,6 +93,11 @@ export default function PlayPage() {
   const { me } = state;
   if (!me) return <main className="flex-1 flex items-center justify-center p-6 text-zinc-500">참가 정보를 불러오는 중...</main>;
 
+  function joinNewTournament() {
+    localStorage.removeItem(PLAYER_TOKEN_KEY);
+    router.replace('/join');
+  }
+
   const activeCard = state.cards.find((c) => !c.revealed) || null;
   const isSqueezingPhase = state.phase === 'squeeze' || state.phase === 'extra-card';
 
@@ -141,7 +146,7 @@ export default function PlayPage() {
       )}
 
       {(state.phase === 'result-calc' || state.phase === 'payout' || state.phase === 'next-round') && (
-        <ResultPhase state={state} me={me} />
+        <ResultPhase state={state} me={me} onJoinNew={joinNewTournament} />
       )}
     </main>
   );
@@ -263,7 +268,7 @@ function CardRow({ label, cards, activeId }: { label: string; cards: CardView[];
   );
 }
 
-function ResultPhase({ state, me }: { state: TableState; me: NonNullable<TableState['me']> }) {
+function ResultPhase({ state, me, onJoinNew }: { state: TableState; me: NonNullable<TableState['me']>; onJoinNew: () => void }) {
   const result = state.result;
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
@@ -287,6 +292,15 @@ function ResultPhase({ state, me }: { state: TableState; me: NonNullable<TableSt
             );
           })}
         </div>
+      )}
+      {state.status === 'finished' && (
+        <button
+          data-testid="join-new-tournament"
+          onClick={onJoinNew}
+          className="mt-4 w-full max-w-xs rounded-xl bg-amber-400 px-6 py-4 text-base font-black text-zinc-950 shadow-[0_12px_30px_rgba(251,191,36,0.22)] transition hover:bg-amber-300 active:scale-[0.98]"
+        >
+          새 토너먼트 참가
+        </button>
       )}
       {state.phase === 'next-round' && <p className="text-xs text-zinc-500">잠시 후 다음 라운드가 시작됩니다...</p>}
     </div>
