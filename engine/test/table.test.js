@@ -107,7 +107,7 @@ test('initial deal places P1, B1, P2, B2 before squeeze begins', () => {
 test('third cards are called, paused, and dealt in player then banker order', () => {
   const { tournament, player } = activeTable();
   tournament.round.bets.set(player.id, {
-    items: new Map([['tie', 1000]]), confirmed: true, confirmedAt: 1
+    items: new Map([['banker', 1000]]), confirmed: true, confirmedAt: 1
   });
   const entry = (cardId, side, rank) => ({
     cardId, side, card: makeCard(rank, '♠'),
@@ -134,6 +134,7 @@ test('third cards are called, paused, and dealt in player then banker order', ()
   assert.equal(tournament.round.phase, 'extra-card');
   assert.equal(tournament.round.dealIndex, 4);
 
+  tournament.round.bets.get(player.id).items = new Map([['player', 1000]]);
   table.squeezeReveal(tournament, player.id, 'P3', 'top', 1.28, 0.5);
   assert.equal(tournament.round.phase, 'dealer-call');
   assert.equal(tournament.round.log.at(-1).text, 'PLAYER 7');
@@ -200,4 +201,28 @@ test('a single-side bet opens the other hand first and squeezes only card two', 
   assert.equal(table.cardNeedsSqueeze(tournament, tournament.round.cards[1]), false);
   assert.equal(table.cardNeedsSqueeze(tournament, tournament.round.cards[2]), false);
   assert.equal(table.cardNeedsSqueeze(tournament, tournament.round.cards[3]), true);
+});
+
+test('player and banker are mutually exclusive while option bets grant no squeeze', () => {
+  const tournament = table.createTournament({ name: 'bets', initialChips: 10000, roundLimit: 1 });
+  const player = table.addPlayer(tournament, 'bettor');
+  player.connected = true;
+  table.startTournament(tournament);
+
+  table.placeBet(tournament, player.id, 'player', 2000);
+  table.placeBet(tournament, player.id, 'tie', 500);
+  table.placeBet(tournament, player.id, 'banker', 3000);
+  const bet = tournament.round.bets.get(player.id);
+  assert.equal(bet.items.has('player'), false);
+  assert.equal(bet.items.get('banker'), 3000);
+  assert.equal(bet.items.get('tie'), 500);
+
+  tournament.round.squeezerId = player.id;
+  const playerCard = { cardId: 'P2', side: 'player' };
+  const bankerCard = { cardId: 'B2', side: 'banker' };
+  assert.equal(table.cardNeedsSqueeze(tournament, playerCard), false);
+  assert.equal(table.cardNeedsSqueeze(tournament, bankerCard), true);
+
+  bet.items.delete('banker');
+  assert.equal(table.cardNeedsSqueeze(tournament, bankerCard), false);
 });

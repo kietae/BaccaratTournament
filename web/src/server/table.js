@@ -116,9 +116,12 @@ function placeBet(t, playerId, type, amount) {
   if (bet.confirmed) throw new GameError('이미 베팅을 확정했습니다');
 
   const currentForType = bet.items.get(type) || 0;
-  const otherTotal = currentBetTotal(t, playerId) - currentForType;
+  const oppositeMain = type === 'player' ? 'banker' : type === 'banker' ? 'player' : null;
+  const oppositeAmount = oppositeMain ? (bet.items.get(oppositeMain) || 0) : 0;
+  const otherTotal = currentBetTotal(t, playerId) - currentForType - oppositeAmount;
   if (otherTotal + amt > player.chips) throw new GameError('보유 칩을 초과했습니다');
 
+  if (oppositeMain && amt > 0) bet.items.delete(oppositeMain);
   if (amt === 0) bet.items.delete(type);
   else bet.items.set(type, amt);
   return bet;
@@ -148,7 +151,7 @@ function pickSqueezer(t) {
   let best = null;
   for (const [playerId, bet] of t.round.bets.entries()) {
     let total = 0;
-    for (const amt of bet.items.values()) total += amt;
+    total = (bet.items.get('player') || 0) + (bet.items.get('banker') || 0);
     if (total <= 0) continue;
     if (!best || total > best.total || (total === best.total && bet.confirmedAt < best.confirmedAt)) {
       best = { playerId, total, confirmedAt: bet.confirmedAt || Infinity };
@@ -280,18 +283,9 @@ const MAX_SQUEEZE_FRAC = 1.35;
 const LONG_EDGES = new Set(['left', 'right']);
 const SHORT_EDGES = new Set(['top', 'bottom']);
 
-const PLAYER_SIDE_BET_TYPES = new Set(['player', 'playerPair', 'player7TwoCard', 'player7ThreeCard']);
-const BANKER_SIDE_BET_TYPES = new Set(['banker', 'bankerPair', 'banker6TwoCard', 'banker6ThreeCard']);
-// tie / the combo bet depend on both hands, so either counts as "interest"
-// in both sides.
-const BOTH_SIDE_BET_TYPES = new Set(['tie', 'comboP7B6']);
-
 function sideHasInterest(t, side) {
-  const sideTypes = side === 'player' ? PLAYER_SIDE_BET_TYPES : BANKER_SIDE_BET_TYPES;
   for (const bet of t.round.bets.values()) {
-    for (const [type, amt] of bet.items.entries()) {
-      if (amt > 0 && (sideTypes.has(type) || BOTH_SIDE_BET_TYPES.has(type))) return true;
-    }
+    if ((bet.items.get(side) || 0) > 0) return true;
   }
   return false;
 }
@@ -304,10 +298,14 @@ function cardNeedsSqueeze(t, cardEntry) {
   if (!t.round.squeezerId) return false;
   const squeezer = t.players.get(t.round.squeezerId);
   if (!squeezer || !squeezer.connected) return false;
-  // Of the initial pair, the dealer exposes the first card and the selected
-  // player squeezes only the second. Third cards remain squeezable.
+  // Option bets never grant a squeeze. The chosen squeezer may reveal only
+  // cards on the player/banker main side they personally backed.
   if (cardEntry.cardId === 'P1' || cardEntry.cardId === 'B1') return false;
-  return sideHasInterest(t, cardEntry.side);
+  return (squeezerBetAmount(t, t.round.squeezerId, cardEntry.side) > 0);
+}
+
+function squeezerBetAmount(t, playerId, side) {
+  return t.round.bets.get(playerId)?.items.get(side) || 0;
 }
 
 function advancePastCard(t) {

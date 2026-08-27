@@ -50,7 +50,7 @@ export default function BettingBoard({
         <span>베팅 합계 {formatKRW(me.betTotal)}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {mainTypes.map((bt) => {
           const amt = betsByType.get(bt.type) || 0;
           return (
@@ -81,6 +81,8 @@ export default function BettingBoard({
           );
         })}
       </div>
+
+      <div className="mt-1 text-[11px] text-center text-amber-200/70">플레이어·뱅커는 한 곳만 선택 · 옵션벳은 스퀴즈 권한 없음</div>
 
       <div className="grid grid-cols-2 gap-2">
         {sideTypes.map((bt) => {

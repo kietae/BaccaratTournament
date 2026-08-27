@@ -5,7 +5,7 @@ import type { BetType } from './types';
 export const BET_TYPES: { type: BetType; label: string; odds: number; group: 'main' | 'side' }[] = [
   { type: 'player', label: '플레이어', odds: 1, group: 'main' },
   { type: 'banker', label: '뱅커', odds: 0.95, group: 'main' },
-  { type: 'tie', label: '타이', odds: 8, group: 'main' },
+  { type: 'tie', label: '타이', odds: 8, group: 'side' },
   { type: 'playerPair', label: '플레이어 페어', odds: 11, group: 'side' },
   { type: 'bankerPair', label: '뱅커 페어', odds: 11, group: 'side' },
   { type: 'banker6TwoCard', label: '뱅커 6 (2장)', odds: 12, group: 'side' },
