@@ -43,8 +43,8 @@ test('any edge reveals only at the practical end stop', () => {
   const revealed = table.squeezeReveal(tournament, player.id, 'P2', 'left', 1.28, 0.5);
   assert.equal(revealed.current.revealed, true);
   assert.equal(revealed.done, false);
-  assert.equal(table.completeDealerCall(tournament).done, false);
-  assert.equal(tournament.round.log.at(-1).text, '플레이어 윈');
+  assert.equal(tournament.round.log.at(-1).text, '플레이어 스탠즈 온 7. 플레이어 윈');
+  assert.equal(tournament.round.log.at(-1).tone, 'winner');
   assert.equal(table.completeDealerCall(tournament).done, true);
 });
 
@@ -182,9 +182,7 @@ test('hands open player-first and natural/result calls pause the reveal flow', (
   tournament.round.cards[3].card = makeCard('3', '♦');
   tournament.round.cards[3].revealed = false;
   table.autoRevealCard(tournament);
-  assert.equal(tournament.round.log.at(-1).text, '뱅커 내추럴 8');
-  assert.equal(table.completeDealerCall(tournament).done, false);
-  assert.equal(tournament.round.log.at(-1).text, '플레이어 윈');
+  assert.equal(tournament.round.log.at(-1).text, '뱅커 내추럴 8. 플레이어 윈');
   assert.equal(tournament.round.log.at(-1).tone, 'winner');
   assert.equal(table.completeDealerCall(tournament).done, true);
 });

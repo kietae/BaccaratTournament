@@ -28,6 +28,7 @@ export default function AdminPage() {
   const [presentation, setPresentation] = useState(false);
   const tokenRef = useRef<string | null>(null);
   const lastSpokenAt = useRef(0);
+  const activeUtterance = useRef<SpeechSynthesisUtterance | null>(null);
   const lastDealtCount = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -68,7 +69,10 @@ export default function AdminPage() {
     const language = isBetCall ? 'en' : 'ko';
     const matchingVoices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith(language));
     utterance.voice = matchingVoices.find((voice) => /sunhi|heami|yuna|zira|samantha|female|여성/i.test(voice.name)) ?? matchingVoices[0] ?? null;
+    activeUtterance.current = utterance;
+    utterance.onend = () => { if (activeUtterance.current === utterance) activeUtterance.current = null; };
     window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
     window.speechSynthesis.speak(utterance);
   }, [state?.log]);
 

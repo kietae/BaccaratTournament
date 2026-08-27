@@ -58,7 +58,7 @@ function freshRound(roundNo) {
     cards: [], // ordered list of card descriptors for this round
     dealIndex: -1, // last card physically placed on the table
     cardIndex: 0, // pointer into cards[] for the one currently squeezable
-    callNextAction: 'continue', // continue | winner | finish
+    callNextAction: 'continue', // continue | finish
     result: null, // full engine.resolveRound() output (server-authoritative, hidden from clients until revealed)
     settlements: null, // Map<playerId, settledBet[]>
     log: [] // { type, text, at } caption/call log for this round
@@ -232,25 +232,22 @@ function beginHandCall(t, side, finishesRound = false) {
   const sideLabel = side === 'player' ? '플레이어' : '뱅커';
   const qualifier = total >= 8 ? ' 내추럴' : side === 'player' && total >= 6 ? ' 스탠즈 온' : side === 'banker' && total === 7 ? ' 스탠즈 온' : '';
   t.round.phase = 'dealer-call';
-  t.round.callNextAction = finishesRound ? 'winner' : 'continue';
-  t.round.log.push({ type: 'call', text: `${sideLabel}${qualifier} ${total}`, at: Date.now() });
+  t.round.callNextAction = finishesRound ? 'finish' : 'continue';
+  const resultCall = finishesRound ? `. ${outcomeCall(t.round.result)}` : '';
+  t.round.log.push({ type: 'call', text: `${sideLabel}${qualifier} ${total}${resultCall}`, tone: finishesRound ? 'winner' : undefined, at: Date.now() });
 }
 
 function beginThirdTotalCall(t, side, finishesRound) {
   const total = t.round.result[side === 'player' ? 'playerTotal' : 'bankerTotal'];
   const sideLabel = side === 'player' ? '플레이어' : '뱅커';
   t.round.phase = 'dealer-call';
-  t.round.callNextAction = finishesRound ? 'winner' : 'continue';
-  t.round.log.push({ type: 'call', text: `${sideLabel} ${total}`, at: Date.now() });
+  t.round.callNextAction = finishesRound ? 'finish' : 'continue';
+  const resultCall = finishesRound ? `. ${outcomeCall(t.round.result)}` : '';
+  t.round.log.push({ type: 'call', text: `${sideLabel} ${total}${resultCall}`, tone: finishesRound ? 'winner' : undefined, at: Date.now() });
 }
 
 function completeDealerCall(t) {
   if (t.round.phase !== 'dealer-call') return { done: false };
-  if (t.round.callNextAction === 'winner') {
-    t.round.callNextAction = 'finish';
-    t.round.log.push({ type: 'call', text: outcomeCall(t.round.result), tone: 'winner', at: Date.now() });
-    return { done: false };
-  }
   if (t.round.callNextAction === 'finish') {
     t.round.callNextAction = 'continue';
     t.round.phase = 'result-calc';
