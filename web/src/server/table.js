@@ -200,10 +200,16 @@ function dealNextInitialCard(t) {
 }
 
 function beginSqueezeForCurrentCard(t) {
-  // Deal order is alternating, but baccarat hands are opened player-first.
+  // Deal order is alternating. If bets exist on only one side, expose the
+  // unbacked hand first; otherwise use the usual player-first reveal order.
   if (t.round.cardIndex === 0 && t.round.cards[1]?.cardId === 'B1') {
     const byId = new Map(t.round.cards.map((card) => [card.cardId, card]));
-    t.round.cards = ['P1', 'P2', 'B1', 'B2', 'P3', 'B3'].map((id) => byId.get(id)).filter(Boolean);
+    const playerInterest = sideHasInterest(t, 'player');
+    const bankerInterest = sideHasInterest(t, 'banker');
+    const initialOrder = playerInterest && !bankerInterest
+      ? ['B1', 'B2', 'P1', 'P2']
+      : ['P1', 'P2', 'B1', 'B2'];
+    t.round.cards = [...initialOrder, 'P3', 'B3'].map((id) => byId.get(id)).filter(Boolean);
   }
   const i = t.round.cardIndex;
   t.round.phase = i < 4 ? 'squeeze' : 'extra-card';
@@ -268,6 +274,16 @@ const BANKER_SIDE_BET_TYPES = new Set(['banker', 'bankerPair', 'banker6TwoCard',
 // in both sides.
 const BOTH_SIDE_BET_TYPES = new Set(['tie', 'comboP7B6']);
 
+function sideHasInterest(t, side) {
+  const sideTypes = side === 'player' ? PLAYER_SIDE_BET_TYPES : BANKER_SIDE_BET_TYPES;
+  for (const bet of t.round.bets.values()) {
+    for (const [type, amt] of bet.items.entries()) {
+      if (amt > 0 && (sideTypes.has(type) || BOTH_SIDE_BET_TYPES.has(type))) return true;
+    }
+  }
+  return false;
+}
+
 // Nobody has a stake in a card if nobody bet on that card's side (and
 // nobody bet a both-sides type like tie). If squeezerId is null, this is
 // necessarily true for every card, since pickSqueezer only returns null
@@ -276,14 +292,10 @@ function cardNeedsSqueeze(t, cardEntry) {
   if (!t.round.squeezerId) return false;
   const squeezer = t.players.get(t.round.squeezerId);
   if (!squeezer || !squeezer.connected) return false;
-  const sideTypes = cardEntry.side === 'player' ? PLAYER_SIDE_BET_TYPES : BANKER_SIDE_BET_TYPES;
-  for (const bet of t.round.bets.values()) {
-    for (const [type, amt] of bet.items.entries()) {
-      if (amt <= 0) continue;
-      if (sideTypes.has(type) || BOTH_SIDE_BET_TYPES.has(type)) return true;
-    }
-  }
-  return false;
+  // Of the initial pair, the dealer exposes the first card and the selected
+  // player squeezes only the second. Third cards remain squeezable.
+  if (cardEntry.cardId === 'P1' || cardEntry.cardId === 'B1') return false;
+  return sideHasInterest(t, cardEntry.side);
 }
 
 function advancePastCard(t) {
@@ -291,7 +303,7 @@ function advancePastCard(t) {
   t.round.cardIndex += 1;
   const next = t.round.cards[t.round.cardIndex];
   if (opened?.cardId === 'P2') {
-    beginHandCall(t, 'player');
+    beginHandCall(t, 'player', !next);
     return false;
   }
   if (opened?.cardId === 'B2') {
