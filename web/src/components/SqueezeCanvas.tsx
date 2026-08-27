@@ -321,31 +321,23 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // corner index while squeezing a physical baccarat card. It is drawn
       // last so it genuinely occludes the bent face in both local and remote
       // (projector) views.
-      const normalAngle = edge === 'left' ? 0
-        : edge === 'right' ? Math.PI
-          : edge === 'top' ? Math.PI / 2
-            : -Math.PI / 2;
-      const thumbLength = clamp(Math.min(width, height) * 0.19, 35, 54);
-      const thumbWidth = thumbLength * 0.7;
-      const inwardOffset = thumbLength * 0.18;
+      const thumbLength = clamp(Math.min(width, height) * 0.27, 48, 68);
+      const thumbWidth = thumbLength * 0.78;
       // On a short edge the thumbs spread toward the outer corners. On a long
       // edge they sit farther inward, over the vertically inset card indices.
       const cornerInset = LONG_EDGES.has(edge)
         ? clamp(tangentSize * 0.18, thumbWidth * 0.9, tangentSize * 0.24)
-        : clamp(tangentSize * 0.07, thumbWidth * 0.52, tangentSize * 0.11);
+        : clamp(tangentSize * 0.1, thumbWidth * 0.52, tangentSize * 0.14);
 
-      function drawThumb(tangent: number) {
+      function drawThumb(tangent: number, thumbAngle: number) {
         const tipNormal = pullAt(tangent).pull;
         const thumbTip = edge === 'left' ? { x: tipNormal, y: tangent }
           : edge === 'right' ? { x: width - tipNormal, y: tangent }
             : edge === 'top' ? { x: tangent, y: tipNormal }
               : { x: tangent, y: height - tipNormal };
         ctx.save();
-        ctx.translate(
-          thumbTip.x - Math.cos(normalAngle) * inwardOffset,
-          thumbTip.y - Math.sin(normalAngle) * inwardOffset
-        );
-        ctx.rotate(normalAngle);
+        ctx.translate(thumbTip.x, thumbTip.y);
+        ctx.rotate(thumbAngle);
         if (thumbImage.complete && thumbImage.naturalWidth > 0) {
           ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
           ctx.shadowBlur = 7;
@@ -392,8 +384,13 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         ctx.restore();
       }
 
-      drawThumb(cornerInset);
-      drawThumb(tangentSize - cornerInset);
+      // Source sprite points right. Rotate the two hands toward one another:
+      // top -> down and bottom -> up on long edges; left -> right and right
+      // -> left on short edges.
+      const firstThumbAngle = vertical ? Math.PI / 2 : 0;
+      const secondThumbAngle = vertical ? -Math.PI / 2 : Math.PI;
+      drawThumb(cornerInset, firstThumbAngle);
+      drawThumb(tangentSize - cornerInset, secondThumbAngle);
     }
 
     function render() {
