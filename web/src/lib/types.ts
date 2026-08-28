@@ -99,6 +99,8 @@ export interface TableState {
   status: 'lobby' | 'active' | 'finished';
   initialChips: number;
   roundLimit: number | null;
+  bettingSeconds: number;
+  betLimits: { mainMin: number; mainMax: number; sideMin: number; sideMax: number };
   roundNo: number;
   phase: Phase;
   phaseEndsAt: number | null;

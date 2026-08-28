@@ -11,7 +11,7 @@ function activeTable() {
   const player = table.addPlayer(tournament, 'squeezer');
   player.connected = true;
   tournament.round.phase = 'squeeze';
-  tournament.round.squeezerId = player.id;
+  tournament.round.squeezers.player = player.id;
   tournament.round.bets.set(player.id, {
     items: new Map([['player', 1000]]), confirmed: true, confirmedAt: 1
   });
@@ -109,6 +109,7 @@ test('third cards are called, paused, and dealt in player then banker order', ()
   tournament.round.bets.set(player.id, {
     items: new Map([['banker', 1000]]), confirmed: true, confirmedAt: 1
   });
+  tournament.round.squeezers = { player: player.id, banker: player.id };
   const entry = (cardId, side, rank) => ({
     cardId, side, card: makeCard(rank, '♠'),
     orientation: cardId.endsWith('3') ? 'horizontal' : 'vertical',
@@ -205,7 +206,7 @@ test('a single-side bet opens the other hand first and squeezes only card two', 
 });
 
 test('player and banker are mutually exclusive while option bets grant no squeeze', () => {
-  const tournament = table.createTournament({ name: 'bets', initialChips: 10000, roundLimit: 1 });
+  const tournament = table.createTournament({ name: 'bets', initialChips: 10000, roundLimit: 1, betLimits: { mainMin: 1000, mainMax: 10000, sideMin: 100, sideMax: 10000 } });
   const player = table.addPlayer(tournament, 'bettor');
   player.connected = true;
   table.startTournament(tournament);
@@ -218,7 +219,7 @@ test('player and banker are mutually exclusive while option bets grant no squeez
   assert.equal(bet.items.get('banker'), 3000);
   assert.equal(bet.items.get('tie'), 500);
 
-  tournament.round.squeezerId = player.id;
+  tournament.round.squeezers.banker = player.id;
   const playerCard = { cardId: 'P2', side: 'player' };
   const bankerCard = { cardId: 'B2', side: 'banker' };
   assert.equal(table.cardNeedsSqueeze(tournament, playerCard), false);
@@ -226,4 +227,23 @@ test('player and banker are mutually exclusive while option bets grant no squeez
 
   bet.items.delete('banker');
   assert.equal(table.cardNeedsSqueeze(tournament, bankerCard), false);
+});
+
+test('player and banker highest bettors receive independent squeeze authority', () => {
+  const tournament = table.createTournament({ name: 'split', initialChips: 20000000, betLimits: { mainMin: 100000, mainMax: 10000000 } });
+  const playerBettor = table.addPlayer(tournament, 'player bettor');
+  const bankerBettor = table.addPlayer(tournament, 'banker bettor');
+  playerBettor.connected = bankerBettor.connected = true;
+  table.startTournament(tournament);
+  table.placeBet(tournament, playerBettor.id, 'player', 10000000);
+  table.placeBet(tournament, bankerBettor.id, 'banker', 5000000);
+  table.confirmBets(tournament, playerBettor.id);
+  table.confirmBets(tournament, bankerBettor.id);
+  table.beginDealing(tournament);
+  assert.equal(tournament.round.squeezers.player, playerBettor.id);
+  assert.equal(tournament.round.squeezers.banker, bankerBettor.id);
+});
+
+test('join code contains exactly three English letters', () => {
+  assert.match(table.createTournament({}).joinCode, /^[A-Z]{3}$/);
 });

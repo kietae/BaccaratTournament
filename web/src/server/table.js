@@ -9,6 +9,7 @@ const { BET_TYPE_SET } = require('./betTypes');
 const BETTING_SECONDS = 25;
 const NEXT_ROUND_SECONDS = 6;
 const DEFAULT_INITIAL_CHIPS = 30000000;
+const DEFAULT_BET_LIMITS = { mainMin: 100000, mainMax: 10000000, sideMin: 10000, sideMax: 1000000 };
 
 function id() {
   return crypto.randomBytes(8).toString('hex');
@@ -16,10 +17,10 @@ function id() {
 function token() {
   return crypto.randomBytes(24).toString('hex');
 }
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no O/I
 function joinCode() {
   let s = '';
-  for (let i = 0; i < 6; i++) s += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+  for (let i = 0; i < 3; i++) s += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
   return s;
 }
 
@@ -28,12 +29,27 @@ function joinCode() {
 // table per server process is enough. Everything is in-memory; a player's
 // reconnect token is the durability mechanism (survives refresh/disconnect
 // for the lifetime of the server process, not a server restart).
-function createTournament({ name, initialChips, roundLimit }) {
+function positiveNumber(value, fallback) {
+  const n = Math.floor(Number(value));
+  return n > 0 ? n : fallback;
+}
+
+function createTournament({ name, initialChips, roundLimit, bettingSeconds, betLimits } = {}) {
+  const limits = {
+    mainMin: positiveNumber(betLimits?.mainMin, DEFAULT_BET_LIMITS.mainMin),
+    mainMax: positiveNumber(betLimits?.mainMax, DEFAULT_BET_LIMITS.mainMax),
+    sideMin: positiveNumber(betLimits?.sideMin, DEFAULT_BET_LIMITS.sideMin),
+    sideMax: positiveNumber(betLimits?.sideMax, DEFAULT_BET_LIMITS.sideMax)
+  };
+  if (limits.mainMax < limits.mainMin) limits.mainMax = limits.mainMin;
+  if (limits.sideMax < limits.sideMin) limits.sideMax = limits.sideMin;
   return {
     id: id(),
     name: name || '바카라 토너먼트',
     initialChips: initialChips > 0 ? initialChips : DEFAULT_INITIAL_CHIPS,
     roundLimit: roundLimit > 0 ? roundLimit : null,
+    bettingSeconds: positiveNumber(bettingSeconds, BETTING_SECONDS),
+    betLimits: limits,
     adminToken: token(),
     joinCode: joinCode(),
     status: 'lobby', // lobby | active | finished
@@ -54,7 +70,7 @@ function freshRound(roundNo) {
     phase: 'betting-wait',
     phaseEndsAt: null,
     bets: new Map(), // playerId -> { items: Map<type, amount>, confirmed, confirmedAt }
-    squeezerId: null,
+    squeezers: { player: null, banker: null },
     cards: [], // ordered list of card descriptors for this round
     dealIndex: -1, // last card physically placed on the table
     cardIndex: 0, // pointer into cards[] for the one currently squeezable
@@ -111,6 +127,11 @@ function placeBet(t, playerId, type, amount) {
   const amt = Math.max(0, Math.floor(Number(amount) || 0));
   const player = t.players.get(playerId);
   if (!player) throw new GameError('참가자를 찾을 수 없습니다');
+  const isMain = type === 'player' || type === 'banker';
+  const min = isMain ? t.betLimits.mainMin : t.betLimits.sideMin;
+  const max = isMain ? t.betLimits.mainMax : t.betLimits.sideMax;
+  if (amt > 0 && amt < min) throw new GameError(`최소 베팅금액은 ${min.toLocaleString('ko-KR')}원입니다`);
+  if (amt > max) throw new GameError(`최대 베팅금액은 ${max.toLocaleString('ko-KR')}원입니다`);
 
   const bet = ensureBetEntry(t, playerId);
   if (bet.confirmed) throw new GameError('이미 베팅을 확정했습니다');
@@ -147,11 +168,10 @@ function allActivePlayersConfirmed(t) {
   });
 }
 
-function pickSqueezer(t) {
+function pickSqueezer(t, side) {
   let best = null;
   for (const [playerId, bet] of t.round.bets.entries()) {
-    let total = 0;
-    total = (bet.items.get('player') || 0) + (bet.items.get('banker') || 0);
+    const total = bet.items.get(side) || 0;
     if (total <= 0) continue;
     if (!best || total > best.total || (total === best.total && bet.confirmedAt < best.confirmedAt)) {
       best = { playerId, total, confirmedAt: bet.confirmedAt || Infinity };
@@ -167,7 +187,7 @@ function cardOrientation(idx) {
 function beginDealing(t) {
   t.round.phase = 'dealing';
   t.round.phaseEndsAt = null;
-  t.round.squeezerId = pickSqueezer(t);
+  t.round.squeezers = { player: pickSqueezer(t, 'player'), banker: pickSqueezer(t, 'banker') };
 
   const draw = () => t.shoe.draw();
   const p1 = draw(), b1 = draw(), p2 = draw(), b2 = draw();
@@ -289,17 +309,21 @@ function sideHasInterest(t, side) {
 }
 
 // Nobody has a stake in a card if nobody bet on that card's side (and
-// nobody bet a both-sides type like tie). If squeezerId is null, this is
-// necessarily true for every card, since pickSqueezer only returns null
-// when every bet total is 0.
+// nobody bet a both-sides type like tie). Option bets do not grant authority.
 function cardNeedsSqueeze(t, cardEntry) {
-  if (!t.round.squeezerId) return false;
-  const squeezer = t.players.get(t.round.squeezerId);
+  const squeezerId = t.round.squeezers[cardEntry.side];
+  if (!squeezerId) return false;
+  const squeezer = t.players.get(squeezerId);
   if (!squeezer || !squeezer.connected) return false;
   // Option bets never grant a squeeze. The chosen squeezer may reveal only
   // cards on the player/banker main side they personally backed.
   if (cardEntry.cardId === 'P1' || cardEntry.cardId === 'B1') return false;
-  return (squeezerBetAmount(t, t.round.squeezerId, cardEntry.side) > 0);
+  return (squeezerBetAmount(t, squeezerId, cardEntry.side) > 0);
+}
+
+function activeSqueezerId(t) {
+  const current = t.round.cards[t.round.cardIndex];
+  return current ? t.round.squeezers[current.side] : null;
 }
 
 function squeezerBetAmount(t, playerId, side) {
@@ -351,7 +375,7 @@ function autoRevealCard(t) {
 }
 
 function squeezeProgress(t, playerId, cardId, edge, pct, grip) {
-  if (t.round.squeezerId !== playerId) throw new GameError('쪼기 권한이 없습니다');
+  if (activeSqueezerId(t) !== playerId) throw new GameError('쪼기 권한이 없습니다');
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
   if (t.round.phase !== 'squeeze' && t.round.phase !== 'extra-card') throw new GameError('쪼기 단계가 아닙니다');
@@ -370,7 +394,7 @@ function squeezeProgress(t, playerId, cardId, edge, pct, grip) {
 // broadcast, which can lag a fast release by a frame or two and reject an
 // otherwise-valid reveal.
 function squeezeReveal(t, playerId, cardId, edge, pct, grip) {
-  if (t.round.squeezerId !== playerId) throw new GameError('쪼기 권한이 없습니다');
+  if (activeSqueezerId(t) !== playerId) throw new GameError('쪼기 권한이 없습니다');
   const current = t.round.cards[t.round.cardIndex];
   if (!current || current.cardId !== cardId) throw new GameError('지금 쪼길 수 있는 카드가 아닙니다');
   if (!cardNeedsSqueeze(t, current)) throw new GameError('이 카드는 딜러가 공개합니다');
@@ -426,7 +450,7 @@ function markNextRound(t) {
 function startNextRound(t) {
   t.roundNo += 1;
   t.round = freshRound(t.roundNo);
-  t.round.phaseEndsAt = Date.now() + BETTING_SECONDS * 1000;
+  t.round.phaseEndsAt = Date.now() + t.bettingSeconds * 1000;
   t.round.log.push({ type: 'call', text: 'BET DOWN PLEASE', at: Date.now() });
 }
 
@@ -456,12 +480,12 @@ function roundLimitReached(t) {
 }
 
 module.exports = {
-  BETTING_SECONDS, NEXT_ROUND_SECONDS, DEFAULT_INITIAL_CHIPS,
+  BETTING_SECONDS, NEXT_ROUND_SECONDS, DEFAULT_INITIAL_CHIPS, DEFAULT_BET_LIMITS,
   GameError,
   createTournament, addPlayer, playerByToken,
   placeBet, confirmBets, allActivePlayersConfirmed,
   beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard, completeDealerCall,
-  cardNeedsSqueeze, autoRevealCard,
+  cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, startTournament, roundLimitReached,
   currentBetTotal

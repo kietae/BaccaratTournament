@@ -112,3 +112,13 @@ test('unknown bet type throws', () => {
   const result = baseResult();
   assert.throws(() => settleBets([{ type: 'nonsense', amount: 10 }], result));
 });
+
+test('Super 7 odds depend on the total number of cards', () => {
+  for (const [cardCount, odds] of [[4, 30], [5, 40], [6, 100]]) {
+    const playerCards = [makeCard('3', '♠'), makeCard('4', '♥')];
+    const bankerCards = [makeCard('3', '♦'), makeCard('3', '♣')];
+    while (playerCards.length + bankerCards.length < cardCount) playerCards.push(makeCard('K', '♠'));
+    const result = baseResult({ outcome: 'player', playerTotal: 7, bankerTotal: 6, playerCards, bankerCards });
+    assert.equal(settleBets([{ type: 'comboP7B6', amount: 100 }], result)[0].net, 100 * odds);
+  }
+});

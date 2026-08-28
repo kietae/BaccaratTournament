@@ -146,6 +146,7 @@ export default function PlayPage() {
     </div>
     <main className="play-shell h-[100svh] overflow-hidden flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
       <TopBar state={state} />
+      <BettingCountdown state={state} />
       <div className="play-road"><BigRoadGrid road={state.bigRoad} /></div>
 
       {caption && (
@@ -225,6 +226,7 @@ function BettingPhase({ state, me }: { state: TableState; me: NonNullable<TableS
     <BettingBoard
       me={me}
       locked={state.phase !== 'betting-wait'}
+      betLimits={state.betLimits}
       onPlaceBet={placeBet}
       onClearBet={clearBet}
       onConfirm={confirmBets}
@@ -280,7 +282,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
                 remoteEdge={controlPeel?.edge ?? activeCard.edge}
                 remotePct={controlPeel?.pct ?? activeCard.pct}
                 remoteGrip={controlPeel?.grip ?? activeCard.grip}
-                showThumbs={!iCanSqueezeThisCard}
+                showThumbs
               />
             </div>
             {iCanSqueezeThisCard && <SwipeControl axis="horizontal" onProgress={controlProgress} onRelease={controlRelease} />}
@@ -292,6 +294,28 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
       })()}
     </div>
   );
+}
+
+function BettingCountdown({ state }: { state: TableState }) {
+  const remaining = useCountdown(state.phaseEndsAt);
+  const lastBeep = useRef<number | null>(null);
+  useEffect(() => {
+    if (state.phase !== 'betting-wait' || remaining < 1 || remaining > 10 || lastBeep.current === remaining) return;
+    lastBeep.current = remaining;
+    const AudioCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtor) return;
+    const audio = new AudioCtor();
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+    osc.frequency.value = remaining === 1 ? 1100 : 820;
+    gain.gain.setValueAtTime(0.12, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.1);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(); osc.stop(audio.currentTime + 0.1);
+    osc.onended = () => void audio.close();
+  }, [remaining, state.phase]);
+  if (state.phase !== 'betting-wait' || remaining < 1 || remaining > 10) return null;
+  return <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center" aria-live="assertive"><div className="countdown-pop text-8xl font-black text-amber-300 drop-shadow-[0_0_35px_rgba(251,191,36,0.8)]">{remaining}</div></div>;
 }
 
 function SwipeControl({ axis, onProgress, onRelease }: {

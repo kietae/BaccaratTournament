@@ -7,12 +7,10 @@ export interface ChipDenom {
 
 // Confirmed 6-denomination set (docs/dev-plan.html §11).
 export const CHIP_DENOMS: ChipDenom[] = [
-  { value: 1_000, label: '1K', color: '#C7CDC8', textColor: '#16211C' },
-  { value: 5_000, label: '5K', color: '#B23B3B', textColor: '#fff' },
-  { value: 10_000, label: '10K', color: '#2A5C99', textColor: '#fff' },
-  { value: 100_000, label: '100K', color: '#20211F', textColor: '#fff' },
-  { value: 1_000_000, label: '1M', color: '#C1651F', textColor: '#fff' },
-  { value: 10_000_000, label: '10M', color: '#B8923D', textColor: '#16211C' }
+  { value: 10_000, label: '1만', color: '#2A5C99', textColor: '#fff' },
+  { value: 100_000, label: '10만', color: '#20211F', textColor: '#fff' },
+  { value: 1_000_000, label: '100만', color: '#C1651F', textColor: '#fff' },
+  { value: 10_000_000, label: '1000만', color: '#B8923D', textColor: '#16211C' }
 ];
 
 // Greedy breakdown into the fewest chips — largest denomination first.

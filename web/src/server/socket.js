@@ -295,7 +295,7 @@ function registerSocketServer(io) {
           player.connected = false;
           player.socketId = null;
           broadcastState();
-          if (playerId === t.round.squeezerId &&
+          if (playerId === table.activeSqueezerId(t) &&
               (t.round.phase === 'squeeze' || t.round.phase === 'extra-card')) {
             advanceDealerAutoReveals();
           }

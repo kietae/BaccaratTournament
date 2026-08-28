@@ -1,6 +1,6 @@
 'use strict';
 
-const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze } = require('./table');
+const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze, activeSqueezerId } = require('./table');
 
 // The squeezer sees the true rank/suit of ONLY the card currently under
 // their thumb, the instant it becomes active — that's what makes the peel
@@ -49,10 +49,11 @@ function buildSnapshot(t, forPlayerId) {
   const myBets = myBetEntry ? [...myBetEntry.items.entries()].map(([type, amount]) => ({ type, amount })) : [];
   const mySettlement = forPlayerId && round.settlements ? (round.settlements.get(forPlayerId) || []) : null;
 
-  const squeezer = round.squeezerId ? t.players.get(round.squeezerId) : null;
+  const currentSqueezerId = activeSqueezerId(t);
+  const squeezer = currentSqueezerId ? t.players.get(currentSqueezerId) : null;
   const iAmSqueezingNow =
     forPlayerId != null &&
-    forPlayerId === round.squeezerId &&
+    forPlayerId === currentSqueezerId &&
     (round.phase === 'squeeze' || round.phase === 'extra-card');
   const adminCanPresentActiveCard =
     forPlayerId == null &&
@@ -81,6 +82,8 @@ function buildSnapshot(t, forPlayerId) {
     status: t.status,
     initialChips: t.initialChips,
     roundLimit: t.roundLimit,
+    bettingSeconds: t.bettingSeconds,
+    betLimits: t.betLimits,
     roundNo: t.roundNo,
     phase: round.phase,
     phaseEndsAt: round.phaseEndsAt,
@@ -89,9 +92,9 @@ function buildSnapshot(t, forPlayerId) {
     bigRoad: bigRoadSnapshot(t),
     totalPot,
     mainBetSummary,
-    squeezerId: round.squeezerId,
+    squeezerId: currentSqueezerId,
     squeezerNickname: squeezer ? squeezer.nickname : null,
-    isSqueezer: forPlayerId != null && forPlayerId === round.squeezerId,
+    isSqueezer: forPlayerId != null && forPlayerId === currentSqueezerId,
     cards: round.cards.map((entry, i) =>
       cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.dealIndex)
     ),

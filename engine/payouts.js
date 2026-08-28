@@ -12,10 +12,10 @@ const PAYOUTS = {
   tie: 8,
   playerPair: 11,
   bankerPair: 11,
-  banker6TwoCard: 12,
-  banker6ThreeCard: 20,
-  player7TwoCard: 7,
-  player7ThreeCard: 15,
+  banker6TwoCard: 22,
+  banker6ThreeCard: 50,
+  player7TwoCard: 15,
+  player7ThreeCard: 30,
   comboP7B6: 30
 };
 
@@ -32,7 +32,7 @@ function evaluateSideBets(result) {
     banker6ThreeCard: bankerWonWith6 && result.bankerCards.length === 3,
     player7TwoCard: playerWonWith7 && result.playerCards.length === 2,
     player7ThreeCard: playerWonWith7 && result.playerCards.length === 3,
-    comboP7B6: result.playerTotal === 7 && result.bankerTotal === 6
+    comboP7B6: result.outcome === 'player' && result.playerTotal === 7 && result.bankerTotal === 6
   };
 }
 
@@ -58,7 +58,10 @@ function settleBets(bets, result) {
     }
 
     if (hit[bet.type]) {
-      const odds = PAYOUTS[bet.type];
+      const cardCount = result.playerCards.length + result.bankerCards.length;
+      const odds = bet.type === 'comboP7B6'
+        ? ({ 4: 30, 5: 40, 6: 100 }[cardCount] || PAYOUTS.comboP7B6)
+        : PAYOUTS[bet.type];
       const net = bet.amount * odds;
       return { ...bet, result: 'win', payout: bet.amount + net, net };
     }

@@ -328,7 +328,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         ? clamp(tangentSize * 0.18, thumbWidth * 0.9, tangentSize * 0.24)
         : clamp(tangentSize * 0.1, thumbWidth * 0.52, tangentSize * 0.14);
 
-      if (propsRef.current.showThumbs === false) return;
+      // The local controller also needs the virtual fingers: without them the
+      // card index is exposed immediately on the participant's phone.
 
       function drawThumb(tangent: number, thumbAngle: number) {
         const { pull, bell } = pullAt(tangent);

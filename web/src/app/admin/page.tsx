@@ -24,6 +24,11 @@ export default function AdminPage() {
   const [name, setName] = useState('바카라 토너먼트');
   const [initialChips, setInitialChips] = useState(30_000_000);
   const [roundLimit, setRoundLimit] = useState(10);
+  const [bettingSeconds, setBettingSeconds] = useState(25);
+  const [mainMin, setMainMin] = useState(100_000);
+  const [mainMax, setMainMax] = useState(10_000_000);
+  const [sideMin, setSideMin] = useState(10_000);
+  const [sideMax, setSideMax] = useState(1_000_000);
   const [error, setError] = useState<string | null>(null);
   const [presentation, setPresentation] = useState(false);
   const tokenRef = useRef<string | null>(null);
@@ -125,7 +130,7 @@ export default function AdminPage() {
 
   async function createTournament() {
     setError(null);
-    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null });
+    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, betLimits: { mainMin, mainMax, sideMin, sideMax } });
     if (!res.ok || !res.adminToken) { setError(res.error || '생성 실패'); return; }
     localStorage.setItem(ADMIN_TOKEN_KEY, res.adminToken);
     tokenRef.current = res.adminToken;
@@ -163,6 +168,13 @@ export default function AdminPage() {
         <Field label="이름"><input value={name} onChange={(e) => setName(e.target.value)} className="admin-input" /></Field>
         <Field label="초기 지급 칩"><input type="number" value={initialChips} onChange={(e) => setInitialChips(Number(e.target.value))} className="admin-input" /></Field>
         <Field label="라운드 수 제한 (0 = 무제한)"><input type="number" min={0} value={roundLimit} onChange={(e) => setRoundLimit(Number(e.target.value))} className="admin-input" /></Field>
+        <Field label="베팅 대기 시간(초)"><input type="number" min={5} value={bettingSeconds} onChange={(e) => setBettingSeconds(Number(e.target.value))} className="admin-input" /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="메인벳 최소"><input type="number" min={1} value={mainMin} onChange={(e) => setMainMin(Number(e.target.value))} className="admin-input" /></Field>
+          <Field label="메인벳 최대"><input type="number" min={1} value={mainMax} onChange={(e) => setMainMax(Number(e.target.value))} className="admin-input" /></Field>
+          <Field label="옵션벳 최소"><input type="number" min={1} value={sideMin} onChange={(e) => setSideMin(Number(e.target.value))} className="admin-input" /></Field>
+          <Field label="옵션벳 최대"><input type="number" min={1} value={sideMax} onChange={(e) => setSideMax(Number(e.target.value))} className="admin-input" /></Field>
+        </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button data-testid="create-tournament" onClick={createTournament} className="rounded-xl bg-amber-500 text-zinc-950 font-bold py-3 active:scale-[0.98] transition">생성</button>
       </div>
