@@ -63,16 +63,33 @@ test('players cannot bet or confirm before the admin starts the tournament', () 
   assert.equal(tournament.status, 'lobby');
 });
 
-test('starting seeds three road games without consuming tournament rounds or chips', () => {
+test('starting reveals configured road games one at a time without consuming rounds or chips', () => {
   const tournament = table.createTournament({ name: 'seeded', initialChips: 10000, roundLimit: 2 });
   const player = table.addPlayer(tournament, 'player');
   table.startTournament(tournament);
   assert.equal(tournament.status, 'active');
-  assert.equal(tournament.roundNo, 1);
+  assert.equal(tournament.round.phase, 'road-seeding');
+  assert.equal(tournament.roundNo, 0);
+  assert.equal(tournament.roundHistory.length, 0);
+  assert.equal(table.revealSeedRoadGame(tournament), false);
+  assert.equal(tournament.roundHistory.length, 1);
+  assert.equal(table.revealSeedRoadGame(tournament), false);
+  assert.equal(table.revealSeedRoadGame(tournament), true);
   assert.equal(tournament.roundHistory.length, 3);
   assert.equal(tournament.roundHistory.every((round) => round.seeded === true), true);
   assert.equal(player.chips, 10000);
+  table.startNextRound(tournament);
+  assert.equal(tournament.roundNo, 1);
   assert.equal(table.roundLimitReached(tournament), false);
+});
+
+test('initial road game count is administrator configurable', () => {
+  const tournament = table.createTournament({ initialRoadGames: 5 });
+  table.startTournament(tournament);
+  for (let i = 0; i < 5; i++) assert.equal(table.revealSeedRoadGame(tournament), i === 4);
+  assert.equal(tournament.seedProgress, 5);
+  assert.equal(tournament.roundHistory.length, 5);
+  assert.equal(tournament.seedPreview.total, 5);
 });
 
 test('snapshot only marks cards through the current deal position as dealt', () => {
@@ -206,7 +223,7 @@ test('a single-side bet opens the other hand first and squeezes only card two', 
 });
 
 test('player and banker are mutually exclusive while option bets grant no squeeze', () => {
-  const tournament = table.createTournament({ name: 'bets', initialChips: 10000, roundLimit: 1, betLimits: { mainMin: 1000, mainMax: 10000, sideMin: 100, sideMax: 10000 } });
+  const tournament = table.createTournament({ name: 'bets', initialChips: 10000, roundLimit: 1, initialRoadGames: 0, betLimits: { mainMin: 1000, mainMax: 10000, sideMin: 100, sideMax: 10000 } });
   const player = table.addPlayer(tournament, 'bettor');
   player.connected = true;
   table.startTournament(tournament);
@@ -230,7 +247,7 @@ test('player and banker are mutually exclusive while option bets grant no squeez
 });
 
 test('player and banker highest bettors receive independent squeeze authority', () => {
-  const tournament = table.createTournament({ name: 'split', initialChips: 20000000, betLimits: { mainMin: 100000, mainMax: 10000000 } });
+  const tournament = table.createTournament({ name: 'split', initialChips: 20000000, initialRoadGames: 0, betLimits: { mainMin: 100000, mainMax: 10000000 } });
   const playerBettor = table.addPlayer(tournament, 'player bettor');
   const bankerBettor = table.addPlayer(tournament, 'banker bettor');
   playerBettor.connected = bankerBettor.connected = true;

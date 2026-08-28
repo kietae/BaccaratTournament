@@ -14,6 +14,7 @@ import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
+  'road-seeding': '초기 게임 진행',
   'betting-wait': '베팅 시간',
   'betting-confirmed': '베팅 마감',
   dealing: '딜링 중',
@@ -163,6 +164,8 @@ export default function PlayPage() {
 
       {state.status === 'active' && state.phase === 'betting-wait' && <BettingPhase state={state} me={me} />}
 
+      {state.phase === 'road-seeding' && <PlayerSeedPreview state={state} />}
+
       {state.phase === 'betting-confirmed' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-400">
           <p className="text-sm">{PHASE_LABEL[state.phase]}...</p>
@@ -177,7 +180,7 @@ export default function PlayPage() {
       {state.phase === 'dealing' && (
         <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(190px,280px)_minmax(92px,1fr)] items-center gap-2 text-zinc-400">
           <CardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} scale={1.5} showTotal />
-          <p className="text-center text-sm">플레이어 → 뱅커 순서로 카드를 배분합니다</p>
+          <div className="text-center"><SqueezeAuthorityBanner state={state} /><p className="mt-2 text-sm">플레이어 → 뱅커 순서로 카드를 배분합니다</p></div>
           <CardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} scale={1.5} showTotal />
         </div>
       )}
@@ -296,23 +299,56 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
   );
 }
 
+function PlayerSeedPreview({ state }: { state: TableState }) {
+  const preview = state.seedPreview;
+  const label = preview?.outcome === 'player' ? 'PLAYER' : preview?.outcome === 'banker' ? 'BANKER' : preview ? 'TIE' : 'READY';
+  const color = preview?.outcome === 'player' ? 'text-blue-300' : preview?.outcome === 'banker' ? 'text-red-300' : 'text-emerald-300';
+  return <div className="flex-1 flex flex-col items-center justify-center text-center"><p className="text-xs tracking-[0.24em] text-amber-300">OPENING ROAD</p><p className="mt-2 text-zinc-300">자동 게임 {state.seedProgress} / {state.initialRoadGames}</p><div key={preview?.index ?? 0} className={`mt-4 text-5xl font-black ${color} countdown-pop`}>{label}</div>{preview && <p className="mt-2 font-mono text-white/80">PLAYER {preview.playerTotal} : {preview.bankerTotal} BANKER</p>}<div className="mt-5 w-full"><BigRoadGrid road={state.bigRoad} /></div></div>;
+}
+
+function SqueezeAuthorityBanner({ state }: { state: TableState }) {
+  const me = state.me?.id;
+  return <div data-testid="squeeze-authorities" className="flex flex-col gap-1 text-xs"><div className={`rounded-lg border px-2 py-1 ${state.squeezeAuthorities.player.playerId === me ? 'border-blue-300 bg-blue-400/20 text-blue-100 font-black' : 'border-blue-500/25 text-blue-200'}`}>PLAYER 스퀴즈 · {state.squeezeAuthorities.player.nickname ?? '딜러 공개'}{state.squeezeAuthorities.player.playerId === me ? ' (나)' : ''}</div><div className={`rounded-lg border px-2 py-1 ${state.squeezeAuthorities.banker.playerId === me ? 'border-red-300 bg-red-400/20 text-red-100 font-black' : 'border-red-500/25 text-red-200'}`}>BANKER 스퀴즈 · {state.squeezeAuthorities.banker.nickname ?? '딜러 공개'}{state.squeezeAuthorities.banker.playerId === me ? ' (나)' : ''}</div></div>;
+}
+
 function BettingCountdown({ state }: { state: TableState }) {
   const remaining = useCountdown(state.phaseEndsAt);
   const lastBeep = useRef<number | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  useEffect(() => {
+    function unlockAudio() {
+      const AudioCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtor) return;
+      const audio = audioRef.current ?? new AudioCtor();
+      audioRef.current = audio;
+      void audio.resume();
+    }
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio);
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      void audioRef.current?.close();
+      audioRef.current = null;
+    };
+  }, []);
   useEffect(() => {
     if (state.phase !== 'betting-wait' || remaining < 1 || remaining > 10 || lastBeep.current === remaining) return;
     lastBeep.current = remaining;
-    const AudioCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtor) return;
-    const audio = new AudioCtor();
-    const osc = audio.createOscillator();
-    const gain = audio.createGain();
-    osc.frequency.value = remaining === 1 ? 1100 : 820;
-    gain.gain.setValueAtTime(0.12, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.1);
-    osc.connect(gain).connect(audio.destination);
-    osc.start(); osc.stop(audio.currentTime + 0.1);
-    osc.onended = () => void audio.close();
+    const audio = audioRef.current;
+    if (!audio) return;
+    const play = () => {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = remaining === 1 ? 1050 : 760;
+      gain.gain.setValueAtTime(0.2, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.15);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(); osc.stop(audio.currentTime + 0.15);
+    };
+    if (audio.state === 'suspended') void audio.resume().then(play).catch(() => undefined);
+    else play();
   }, [remaining, state.phase]);
   if (state.phase !== 'betting-wait' || remaining < 1 || remaining > 10) return null;
   return <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center" aria-live="assertive"><div className="countdown-pop text-8xl font-black text-amber-300 drop-shadow-[0_0_35px_rgba(251,191,36,0.8)]">{remaining}</div></div>;

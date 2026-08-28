@@ -220,22 +220,16 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if (amount < 0.5) return;
       const vertical = edge === 'left' || edge === 'right';
       const tangentSize = vertical ? height : width;
-      const tangentOrigin = vertical ? origin.y : origin.x;
-      const tangentPointer = vertical ? pointer.y : pointer.x;
-      const gripCenter = clamp(tangentOrigin + (tangentPointer - tangentOrigin) * 0.45, 0, tangentSize);
-      const spread = tangentSize * (LONG_EDGES.has(edge) ? 0.42 : 0.68);
       const step = 2;
       const folds: Pt[] = [];
       const tips: Pt[] = [];
 
       function pullAt(tangent: number) {
-        const distance = (tangent - gripCenter) / Math.max(1, spread);
-        const bell = Math.exp(-0.5 * distance * distance);
-        // A long edge advances as one stiff line; otherwise its middle races
-        // ahead of both corners like a rubber sheet. Short edges retain a
-        // softer curve for the final peel.
-        const influence = LONG_EDGES.has(edge) ? 0.82 + bell * 0.18 : 0.58 + bell * 0.42;
-        return { pull: amount * influence, bell };
+        // Two fingers hold opposite points of the lifted edge. Keep the fold
+        // straight between them instead of modelling a single centre grip
+        // that makes the middle of the card bulge forward.
+        void tangent;
+        return { pull: amount, bell: 0 };
       }
 
       // Map only the physical edge strip onto the flap. The grabbed original
@@ -243,7 +237,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // fold. This is a material mapping, not a stationary window into the face.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
         const { pull, bell } = pullAt(tangent + step * 0.5);
-        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.54 + 0.08 * bell : 0.52 + 0.12 * bell);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.54);
         const tipDepth = pull;
         if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
 
@@ -332,8 +326,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // card index is exposed immediately on the participant's phone.
 
       function drawThumb(tangent: number, thumbAngle: number) {
-        const { pull, bell } = pullAt(tangent);
-        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.54 + 0.08 * bell : 0.52 + 0.12 * bell);
+        const { pull } = pullAt(tangent);
+        const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.54);
         // Keep the thumb pad on the flap itself, between the crease and the
         // moving edge. Bias toward the edge so it still covers the index.
         const thumbDepth = foldDepth + (pull - foldDepth) * 0.72;
@@ -409,7 +403,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         drawCardFront(front, textureWidth, textureHeight, current.rank!, current.suit!, () => {
           lastRank = '';
           lastSuit = '';
-        });
+        }, 'back');
         lastRank = current.rank!;
         lastSuit = current.suit!;
       }

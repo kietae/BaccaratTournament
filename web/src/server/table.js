@@ -34,7 +34,7 @@ function positiveNumber(value, fallback) {
   return n > 0 ? n : fallback;
 }
 
-function createTournament({ name, initialChips, roundLimit, bettingSeconds, betLimits } = {}) {
+function createTournament({ name, initialChips, roundLimit, bettingSeconds, initialRoadGames, betLimits } = {}) {
   const limits = {
     mainMin: positiveNumber(betLimits?.mainMin, DEFAULT_BET_LIMITS.mainMin),
     mainMax: positiveNumber(betLimits?.mainMax, DEFAULT_BET_LIMITS.mainMax),
@@ -49,6 +49,9 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, betL
     initialChips: initialChips > 0 ? initialChips : DEFAULT_INITIAL_CHIPS,
     roundLimit: roundLimit > 0 ? roundLimit : null,
     bettingSeconds: positiveNumber(bettingSeconds, BETTING_SECONDS),
+    initialRoadGames: Math.max(0, Math.min(50, Math.floor(Number(initialRoadGames ?? 3)) || 0)),
+    seedProgress: 0,
+    seedPreview: null,
     betLimits: limits,
     adminToken: token(),
     joinCode: joinCode(),
@@ -192,6 +195,7 @@ function beginDealing(t) {
   const draw = () => t.shoe.draw();
   const p1 = draw(), b1 = draw(), p2 = draw(), b2 = draw();
   const result = engine.resolveRound([p1, p2], [b1, b2], draw);
+  result.sideBets = engine.evaluateSideBets(result);
   t.round.result = result;
 
   const cards = [
@@ -469,10 +473,35 @@ function seedRoad(t, count = 3) {
   }
 }
 
+function revealSeedRoadGame(t) {
+  if (t.round.phase !== 'road-seeding' || t.seedProgress >= t.initialRoadGames) return true;
+  const draw = () => t.shoe.draw();
+  const p1 = draw(), b1 = draw(), p2 = draw(), b2 = draw();
+  const result = engine.resolveRound([p1, p2], [b1, b2], draw);
+  t.seedProgress += 1;
+  t.seedPreview = {
+    index: t.seedProgress,
+    total: t.initialRoadGames,
+    outcome: result.outcome,
+    playerTotal: result.playerTotal,
+    bankerTotal: result.bankerTotal
+  };
+  t.roundHistory.push({
+    roundNo: t.seedProgress - t.initialRoadGames,
+    outcome: result.outcome,
+    playerTotal: result.playerTotal,
+    bankerTotal: result.bankerTotal,
+    seeded: true
+  });
+  return t.seedProgress >= t.initialRoadGames;
+}
+
 function startTournament(t) {
-  seedRoad(t, 3);
   t.status = 'active';
-  startNextRound(t);
+  if (t.initialRoadGames > 0) {
+    t.round.phase = 'road-seeding';
+    t.round.phaseEndsAt = null;
+  } else startNextRound(t);
 }
 
 function roundLimitReached(t) {
@@ -487,6 +516,6 @@ module.exports = {
   beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard, completeDealerCall,
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
-  bigRoadSnapshot, markNextRound, startNextRound, seedRoad, startTournament, roundLimitReached,
+  bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
   currentBetTotal
 };

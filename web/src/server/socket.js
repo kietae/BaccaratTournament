@@ -14,6 +14,7 @@ const AUTO_REVEAL_MS = 1050; // dealer peel animation before an unbacked card op
 const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
 const HAND_CALL_MS = 1500; // leave room for the spoken hand total / result
 const SQUEEZE_REVEAL_FRAC = 0.94;
+const SEED_GAME_MS = 1200;
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -44,6 +45,24 @@ function registerSocketServer(io) {
     clearTimers();
     const ms = Math.max(0, t.round.phaseEndsAt - Date.now());
     t.timers.betting = setTimeout(advanceFromBetting, ms);
+  }
+
+  function scheduleSeedRoad() {
+    clearTimers();
+    const step = () => {
+      if (!t || t.status !== 'active' || t.round.phase !== 'road-seeding') return;
+      const done = table.revealSeedRoadGame(t);
+      broadcastState();
+      t.timers.seedRoad = setTimeout(() => {
+        if (!t) return;
+        if (done) {
+          table.startNextRound(t);
+          broadcastState();
+          scheduleBettingTimeout();
+        } else step();
+      }, SEED_GAME_MS);
+    };
+    t.timers.seedRoad = setTimeout(step, 500);
   }
 
   function advanceFromBetting() {
@@ -194,8 +213,9 @@ function registerSocketServer(io) {
         return;
       }
       table.startTournament(t);
-      scheduleBettingTimeout();
       broadcastState();
+      if (t.round.phase === 'road-seeding') scheduleSeedRoad();
+      else scheduleBettingTimeout();
       ack?.({ ok: true });
     });
 

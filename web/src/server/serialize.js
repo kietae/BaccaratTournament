@@ -51,6 +51,11 @@ function buildSnapshot(t, forPlayerId) {
 
   const currentSqueezerId = activeSqueezerId(t);
   const squeezer = currentSqueezerId ? t.players.get(currentSqueezerId) : null;
+  const squeezeAuthorities = Object.fromEntries(['player', 'banker'].map((side) => {
+    const playerId = round.squeezers[side];
+    const player = playerId ? t.players.get(playerId) : null;
+    return [side, { playerId: playerId || null, nickname: player?.nickname || null }];
+  }));
   const iAmSqueezingNow =
     forPlayerId != null &&
     forPlayerId === currentSqueezerId &&
@@ -84,6 +89,9 @@ function buildSnapshot(t, forPlayerId) {
     roundLimit: t.roundLimit,
     bettingSeconds: t.bettingSeconds,
     betLimits: t.betLimits,
+    initialRoadGames: t.initialRoadGames,
+    seedProgress: t.seedProgress,
+    seedPreview: t.seedPreview,
     roundNo: t.roundNo,
     phase: round.phase,
     phaseEndsAt: round.phaseEndsAt,
@@ -95,6 +103,7 @@ function buildSnapshot(t, forPlayerId) {
     squeezerId: currentSqueezerId,
     squeezerNickname: squeezer ? squeezer.nickname : null,
     isSqueezer: forPlayerId != null && forPlayerId === currentSqueezerId,
+    squeezeAuthorities,
     cards: round.cards.map((entry, i) =>
       cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.dealIndex)
     ),
@@ -104,7 +113,8 @@ function buildSnapshot(t, forPlayerId) {
           playerTotal: round.result.playerTotal,
           bankerTotal: round.result.bankerTotal,
           playerNatural: round.result.playerNatural,
-          bankerNatural: round.result.bankerNatural
+          bankerNatural: round.result.bankerNatural,
+          sideBetHits: Object.entries(round.result.sideBets || {}).filter(([, hit]) => hit).map(([type]) => type)
         }
       : null,
     log: round.log,

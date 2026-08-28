@@ -11,6 +11,7 @@ import SqueezeCanvas from '@/components/SqueezeCanvas';
 import RoundResultCallout from '@/components/RoundResultCallout';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
+  'road-seeding': '초기 게임 진행',
   'betting-wait': '베팅 중', 'betting-confirmed': '베팅 마감', dealing: '카드 배분',
   squeeze: '카드 스퀴즈', 'extra-card': '추가 카드', 'third-card-call': '추가 카드 콜', 'dealer-call': '딜러 콜', 'result-calc': '결과 확인',
   payout: '정산', 'next-round': '다음 라운드 준비'
@@ -25,6 +26,7 @@ export default function AdminPage() {
   const [initialChips, setInitialChips] = useState(30_000_000);
   const [roundLimit, setRoundLimit] = useState(10);
   const [bettingSeconds, setBettingSeconds] = useState(25);
+  const [initialRoadGames, setInitialRoadGames] = useState(3);
   const [mainMin, setMainMin] = useState(100_000);
   const [mainMax, setMainMax] = useState(10_000_000);
   const [sideMin, setSideMin] = useState(10_000);
@@ -130,7 +132,7 @@ export default function AdminPage() {
 
   async function createTournament() {
     setError(null);
-    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, betLimits: { mainMin, mainMax, sideMin, sideMax } });
+    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, initialRoadGames, betLimits: { mainMin, mainMax, sideMin, sideMax } });
     if (!res.ok || !res.adminToken) { setError(res.error || '생성 실패'); return; }
     localStorage.setItem(ADMIN_TOKEN_KEY, res.adminToken);
     tokenRef.current = res.adminToken;
@@ -169,6 +171,7 @@ export default function AdminPage() {
         <Field label="초기 지급 칩"><input type="number" value={initialChips} onChange={(e) => setInitialChips(Number(e.target.value))} className="admin-input" /></Field>
         <Field label="라운드 수 제한 (0 = 무제한)"><input type="number" min={0} value={roundLimit} onChange={(e) => setRoundLimit(Number(e.target.value))} className="admin-input" /></Field>
         <Field label="베팅 대기 시간(초)"><input type="number" min={5} value={bettingSeconds} onChange={(e) => setBettingSeconds(Number(e.target.value))} className="admin-input" /></Field>
+        <Field label="시작 전 자동 게임 수"><input type="number" min={0} max={50} value={initialRoadGames} onChange={(e) => setInitialRoadGames(Number(e.target.value))} className="admin-input" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="메인벳 최소"><input type="number" min={1} value={mainMin} onChange={(e) => setMainMin(Number(e.target.value))} className="admin-input" /></Field>
           <Field label="메인벳 최대"><input type="number" min={1} value={mainMax} onChange={(e) => setMainMax(Number(e.target.value))} className="admin-input" /></Field>
@@ -223,11 +226,19 @@ function LiveDashboard({ state }: { state: TableState }) {
 function TableStage({ state, activeCard }: { state: TableState; activeCard: CardView | null }) {
   const resultVisible = state.result && ['result-calc', 'payout', 'next-round'].includes(state.phase);
   const squeezeVisible = activeCard && activeCard.needsSqueeze && (state.phase === 'squeeze' || state.phase === 'extra-card');
+  if (state.phase === 'road-seeding') return <section className="rounded-3xl border border-emerald-700/30 bg-[radial-gradient(circle_at_top,#16543d,#08251a_70%)] p-3 min-h-0 overflow-hidden shadow-2xl flex items-center justify-center"><SeedPreview state={state} /></section>;
   return <section className="rounded-3xl border border-emerald-700/30 bg-[radial-gradient(circle_at_top,#16543d,#08251a_70%)] p-3 min-h-0 overflow-hidden shadow-2xl grid grid-cols-[minmax(150px,1fr)_minmax(220px,1.25fr)_minmax(150px,1fr)] items-center gap-4">
     <AdminCardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={1.5} />
     <div data-testid={resultVisible ? 'result-hands' : undefined} className="min-h-0 h-full flex items-center justify-center">{state.phase === 'third-card-call' || state.phase === 'dealer-call' ? <div className="text-center animate-pulse"><p className="text-sm tracking-[0.3em] text-amber-300">DEALER CALL</p><p className="mt-3 text-4xl lg:text-5xl font-black text-white drop-shadow-[0_0_24px_rgba(251,191,36,0.55)]">{state.log[state.log.length - 1]?.text}</p></div> : squeezeVisible ? <div className="h-full flex flex-col items-center justify-center gap-2"><div className="text-center"><p className="text-xs tracking-[0.2em] text-amber-400 uppercase">Live Squeeze</p><p className="text-sm font-bold text-white">{state.squeezerNickname ?? '딜러'} · {activeCard.side === 'player' ? '플레이어' : '뱅커'} {activeCard.cardId.slice(-1)}번째 카드</p></div><div data-testid="admin-squeeze-stage" className="h-[calc(100%-3rem)] max-h-[43vh] aspect-[11/16] rounded-2xl overflow-hidden border border-amber-400/40 shadow-[0_24px_70px_rgba(0,0,0,0.55)]"><SqueezeCanvas key={activeCard.cardId} mode="remote" revealed={activeCard.revealed} rank={activeCard.rank} suit={activeCard.suit} remoteEdge={activeCard.edge} remotePct={activeCard.pct} remoteGrip={activeCard.grip} /></div></div> : resultVisible && state.result ? <div data-testid="admin-round-result"><RoundResultCallout result={state.result} large /></div> : <div className="text-center text-emerald-100/70"><div className="text-3xl font-bold">{PHASE_LABEL[state.phase]}</div><p className="mt-2 text-sm">참가자 {state.playerCount}명 · 연결 {state.players.filter((p) => p.connected).length}명</p></div>}</div>
     <AdminCardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={1.5} />
   </section>;
+}
+
+function SeedPreview({ state }: { state: TableState }) {
+  const preview = state.seedPreview;
+  const label = preview?.outcome === 'player' ? 'PLAYER' : preview?.outcome === 'banker' ? 'BANKER' : preview ? 'TIE' : 'READY';
+  const color = preview?.outcome === 'player' ? 'text-blue-300' : preview?.outcome === 'banker' ? 'text-red-300' : 'text-emerald-300';
+  return <div data-testid="seed-preview" className="text-center"><p className="text-xs font-bold tracking-[0.28em] text-amber-300">OPENING ROAD</p><p className="mt-3 text-xl text-white">자동 게임 {state.seedProgress} / {state.initialRoadGames}</p><div key={preview?.index ?? 0} className={`mt-4 text-6xl font-black ${color} countdown-pop`}>{label}</div>{preview && <p className="mt-2 font-mono text-xl text-white/80">PLAYER {preview.playerTotal} : {preview.bankerTotal} BANKER</p>}</div>;
 }
 
 function AdminCardRow({ label, cards, activeId, scale = 1 }: { label: string; cards: CardView[]; activeId?: string; scale?: number }) {

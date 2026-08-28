@@ -1,4 +1,5 @@
 export type Phase =
+  | 'road-seeding'
   | 'betting-wait'
   | 'betting-confirmed'
   | 'dealing'
@@ -73,6 +74,7 @@ export interface RoundResultView {
   bankerTotal: number;
   playerNatural: boolean;
   bankerNatural: boolean;
+  sideBetHits: BetType[];
 }
 
 export interface LogEntry {
@@ -101,6 +103,9 @@ export interface TableState {
   roundLimit: number | null;
   bettingSeconds: number;
   betLimits: { mainMin: number; mainMax: number; sideMin: number; sideMax: number };
+  initialRoadGames: number;
+  seedProgress: number;
+  seedPreview: { index: number; total: number; outcome: 'player' | 'banker' | 'tie'; playerTotal: number; bankerTotal: number } | null;
   roundNo: number;
   phase: Phase;
   phaseEndsAt: number | null;
@@ -115,6 +120,10 @@ export interface TableState {
   squeezerId: string | null;
   squeezerNickname: string | null;
   isSqueezer: boolean;
+  squeezeAuthorities: {
+    player: { playerId: string | null; nickname: string | null };
+    banker: { playerId: string | null; nickname: string | null };
+  };
   cards: CardView[];
   result: RoundResultView | null;
   log: LogEntry[];

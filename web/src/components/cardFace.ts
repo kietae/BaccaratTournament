@@ -69,10 +69,17 @@ export function suitColor(suit: string): string {
   return suit === '♥' || suit === '♦' ? '#B23B3B' : '#1a1a1a';
 }
 
-export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string, onReady?: () => void) {
+export function drawCardFront(c: CanvasRenderingContext2D, w: number, h: number, rank: string, suit: string, onReady?: () => void, fallback: 'legacy' | 'back' = 'legacy') {
   const image = asset(cardAssetPath(rank, suit), onReady);
   if (image) {
     c.drawImage(image, 0, 0, w, h);
+    return;
+  }
+  // The large squeeze canvas made this legacy procedural face conspicuous
+  // during the first SVG load. Keep the card back visible until the real
+  // asset arrives; the asset loader invokes onReady and repaints immediately.
+  if (fallback === 'back') {
+    drawCardBack(c, w, h, onReady);
     return;
   }
   c.fillStyle = '#FBF9F4';
