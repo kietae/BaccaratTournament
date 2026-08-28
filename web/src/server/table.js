@@ -64,7 +64,7 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, init
     roundNo: 0,
     roundHistory: [], // { roundNo, outcome, playerTotal, bankerTotal }
     round: freshRound(0),
-    miniGame: { status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null },
+    miniGame: { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null },
     timers: {}
   };
 }
@@ -518,11 +518,12 @@ function roundLimitReached(t) {
   return t.roundLimit != null && t.roundNo >= t.roundLimit;
 }
 
-function startMiniGame(t, durationSeconds = 60) {
+function startMiniGame(t, type = 'beauty-contest', durationSeconds = 60) {
   if (t.status !== 'finished') throw new GameError('토너먼트 종료 후에만 미니게임을 시작할 수 있습니다');
   if (t.miniGame.status === 'collecting') throw new GameError('이미 미니게임이 진행 중입니다');
+  if (type !== 'beauty-contest' && type !== 'lowest-unique') throw new GameError('지원하지 않는 미니게임입니다');
   const seconds = Math.max(10, Math.min(300, Math.floor(Number(durationSeconds)) || 60));
-  t.miniGame = { status: 'collecting', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: Date.now() + seconds * 1000 };
+  t.miniGame = { type, status: 'collecting', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: Date.now() + seconds * 1000 };
   return t.miniGame;
 }
 
@@ -530,7 +531,9 @@ function submitMiniGameNumber(t, playerId, value) {
   if (t.status !== 'finished' || t.miniGame.status !== 'collecting') throw new GameError('현재 숫자를 제출할 수 없습니다');
   if (!t.players.has(playerId)) throw new GameError('참가자 정보를 찾을 수 없습니다');
   const number = Number(value);
-  if (!Number.isInteger(number) || number < 0 || number > 100) throw new GameError('0부터 100까지의 정수를 입력해 주세요');
+  const min = t.miniGame.type === 'lowest-unique' ? 1 : 0;
+  const max = t.miniGame.type === 'lowest-unique' ? 50 : 100;
+  if (!Number.isInteger(number) || number < min || number > max) throw new GameError(`${min}부터 ${max}까지의 정수를 입력해 주세요`);
   t.miniGame.submissions.set(playerId, number);
   // Changing a number is a new final submission, so it moves behind players
   // who already submitted the same-distance answer.
@@ -545,12 +548,25 @@ function revealMiniGame(t) {
     t.miniGame = { ...t.miniGame, status: 'revealed', average: null, target: null, results: [], endsAt: null };
     return t.miniGame;
   }
-  const average = entries.reduce((sum, [, value]) => sum + value, 0) / entries.length;
-  const target = average * 2 / 3;
-  const results = entries
-    .map(([playerId, value]) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-', value, distance: Math.abs(value - target), submittedOrder: t.miniGame.submissionOrder.get(playerId) || Infinity }))
-    .sort((a, b) => a.distance - b.distance || a.submittedOrder - b.submittedOrder)
-    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  let average = null;
+  let target = null;
+  let results;
+  if (t.miniGame.type === 'lowest-unique') {
+    const counts = new Map();
+    for (const [, value] of entries) counts.set(value, (counts.get(value) || 0) + 1);
+    results = entries
+      .map(([playerId, value]) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-', value, count: counts.get(value), unique: counts.get(value) === 1 }))
+      .sort((a, b) => Number(b.unique) - Number(a.unique) || a.value - b.value || a.nickname.localeCompare(b.nickname, 'ko'));
+    let uniqueRank = 0;
+    results = results.map((entry) => ({ ...entry, distance: 0, rank: entry.unique ? ++uniqueRank : 0 }));
+  } else {
+    average = entries.reduce((sum, [, value]) => sum + value, 0) / entries.length;
+    target = average * 2 / 3;
+    results = entries
+      .map(([playerId, value]) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-', value, distance: Math.abs(value - target), submittedOrder: t.miniGame.submissionOrder.get(playerId) || Infinity }))
+      .sort((a, b) => a.distance - b.distance || a.submittedOrder - b.submittedOrder)
+      .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  }
   t.miniGame = { ...t.miniGame, status: 'revealed', average, target, results, endsAt: null };
   return t.miniGame;
 }

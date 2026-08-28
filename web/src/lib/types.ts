@@ -116,6 +116,7 @@ export interface TableState {
     cards: { cardId: string; side: 'player' | 'banker'; rank: string; suit: string }[];
   } | null;
   miniGame: {
+    type: 'beauty-contest' | 'lowest-unique' | null;
     status: 'idle' | 'collecting' | 'revealed';
     submittedCount: number;
     totalPlayers: number;
@@ -124,7 +125,7 @@ export interface TableState {
     myNumber: number | null;
     average: number | null;
     target: number | null;
-    results: { playerId: string; nickname: string; value: number; distance: number; rank: number }[];
+    results: { playerId: string; nickname: string; value: number; distance: number; rank: number; unique?: boolean; count?: number }[];
   };
   roundNo: number;
   phase: Phase;

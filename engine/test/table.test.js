@@ -298,3 +298,21 @@ test('Keynes mini-game runs only after the tournament and ranks closest to two-t
   assert.equal(game.target, 20);
   assert.deepEqual(game.results.map((entry) => [entry.nickname, entry.rank]), [['Bravo', 1], ['Alpha', 2], ['Charlie', 3]]);
 });
+
+test('Lowest Unique Number awards the smallest number submitted by exactly one player', () => {
+  const tournament = table.createTournament({ name: 'lowest unique' });
+  const players = ['A', 'B', 'C', 'D'].map((name) => table.addPlayer(tournament, name));
+  tournament.status = 'finished';
+  table.startMiniGame(tournament, 'lowest-unique');
+  assert.equal(tournament.miniGame.type, 'lowest-unique');
+  assert.throws(() => table.submitMiniGameNumber(tournament, players[0].id, 0), /1부터 50/);
+  table.submitMiniGameNumber(tournament, players[0].id, 1);
+  table.submitMiniGameNumber(tournament, players[1].id, 1);
+  table.submitMiniGameNumber(tournament, players[2].id, 2);
+  table.submitMiniGameNumber(tournament, players[3].id, 7);
+
+  const game = table.revealMiniGame(tournament);
+  assert.deepEqual(game.results.map((entry) => [entry.nickname, entry.value, entry.rank]), [
+    ['C', 2, 1], ['D', 7, 2], ['A', 1, 0], ['B', 1, 0]
+  ]);
+});

@@ -64,6 +64,7 @@ function buildSnapshot(t, forPlayerId) {
     forPlayerId == null &&
     (round.phase === 'squeeze' || round.phase === 'extra-card');
   const miniGame = {
+    type: t.miniGame.type,
     status: t.miniGame.status,
     submittedCount: t.miniGame.submissions.size,
     totalPlayers: t.players.size,

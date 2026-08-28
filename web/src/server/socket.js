@@ -224,7 +224,7 @@ function registerSocketServer(io) {
     socket.on('admin:startMiniGame', (payload, ack) => {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try {
-        table.startMiniGame(t);
+        table.startMiniGame(t, payload?.type);
         t.timers.miniGame = setTimeout(() => {
           if (!t || t.miniGame.status !== 'collecting') return;
           delete t.timers.miniGame;
