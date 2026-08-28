@@ -9,6 +9,8 @@ import BigRoadGrid from '@/components/BigRoadGrid';
 import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
 import SqueezeCanvas from '@/components/SqueezeCanvas';
 import RoundResultCallout from '@/components/RoundResultCallout';
+import OpeningRoadGame from '@/components/OpeningRoadGame';
+import KeynesMiniGame from '@/components/KeynesMiniGame';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
   'road-seeding': '초기 게임 진행',
@@ -149,6 +151,18 @@ export default function AdminPage() {
     if (!res.ok) setError(res.error || '시작 실패');
   }
 
+  async function startMiniGame() {
+    if (!adminToken) return;
+    const res = await ack<{ ok: boolean; error?: string }>('admin:startMiniGame', { adminToken });
+    if (!res.ok) setError(res.error || '미니게임을 시작하지 못했습니다');
+  }
+
+  async function revealMiniGame() {
+    if (!adminToken) return;
+    const res = await ack<{ ok: boolean; error?: string }>('admin:revealMiniGame', { adminToken });
+    if (!res.ok) setError(res.error || '미니게임 결과를 공개하지 못했습니다');
+  }
+
   async function togglePresentation() {
     setPresentation((value) => !value);
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen().catch(() => undefined);
@@ -197,7 +211,7 @@ export default function AdminPage() {
       <div><p className="text-xs tracking-[0.24em] text-amber-500 uppercase">Live Tournament</p><h1 className="text-xl lg:text-3xl font-bold text-amber-100">{state.tournamentName}</h1></div>
       <div className="flex items-center gap-3"><div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
     </header>
-    {state.status === 'lobby' ? <Lobby state={state} qr={qr} onStart={startTournament} error={error} /> : state.status === 'finished' ? <FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} /> : <LiveDashboard state={state} />}
+    {state.status === 'lobby' ? <Lobby state={state} qr={qr} onStart={startTournament} error={error} /> : state.status === 'finished' ? <FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} onStartMiniGame={startMiniGame} onRevealMiniGame={revealMiniGame} error={error} /> : <LiveDashboard state={state} />}
   </main>;
 }
 
@@ -259,10 +273,7 @@ function TableStage({ state, activeCard }: { state: TableState; activeCard: Card
 }
 
 function SeedPreview({ state }: { state: TableState }) {
-  const preview = state.seedPreview;
-  const label = preview?.outcome === 'player' ? 'PLAYER' : preview?.outcome === 'banker' ? 'BANKER' : preview ? 'TIE' : 'READY';
-  const color = preview?.outcome === 'player' ? 'text-blue-300' : preview?.outcome === 'banker' ? 'text-red-300' : 'text-emerald-300';
-  return <div data-testid="seed-preview" className="text-center"><p className="text-xs font-bold tracking-[0.28em] text-amber-300">OPENING ROAD</p><p className="mt-3 text-xl text-white">자동 게임 {state.seedProgress} / {state.initialRoadGames}</p><div key={preview?.index ?? 0} className={`mt-4 text-6xl font-black ${color} countdown-pop`}>{label}</div>{preview && <p className="mt-2 font-mono text-xl text-white/80">PLAYER {preview.playerTotal} : {preview.bankerTotal} BANKER</p>}</div>;
+  return <OpeningRoadGame state={state} large />;
 }
 
 function AdminCardRow({ label, cards, activeId, scale = 1 }: { label: string; cards: CardView[]; activeId?: string; scale?: number }) {
@@ -284,8 +295,9 @@ function Leaderboard({ state, title, limit, hideNames = false }: { state: TableS
   return <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 lg:p-5 min-h-0"><div className="flex items-center justify-between mb-3"><h2 className="font-semibold text-zinc-200">{title}</h2><span className="text-xs text-zinc-500">연결 {state.players.filter((p) => p.connected).length}/{state.playerCount}</span></div><div data-testid="leaderboard" className="space-y-1 max-h-[70vh] overflow-y-auto pr-1">{ranked.map((player, index) => <div key={player.id} className={`grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2 ${index < 3 ? 'bg-amber-400/10 border border-amber-400/15' : 'bg-black/20'}`}><span className={`font-mono font-black ${index === 0 ? 'text-amber-300' : 'text-zinc-500'}`}>{index + 1}</span><span className="truncate text-zinc-100" aria-label={player.connected ? '접속 중' : '연결 끊김'}><span className={`inline-block w-2 h-2 rounded-full mr-2 ${player.connected ? 'bg-emerald-400' : 'bg-zinc-600'}`} />{hideNames ? null : player.nickname}</span><span className="font-mono text-sm text-zinc-300 tabular-nums">{formatKRW(player.chips)}</span></div>)}{ranked.length === 0 && <p className="py-10 text-center text-zinc-600">참가자를 기다리는 중입니다</p>}</div></section>;
 }
 
-function FinalLeaderboard({ state, onPrepareNew }: { state: TableState; onPrepareNew: () => void }) {
+function FinalLeaderboard({ state, onPrepareNew, onStartMiniGame, onRevealMiniGame, error }: { state: TableState; onPrepareNew: () => void; onStartMiniGame: () => void; onRevealMiniGame: () => void; error: string | null }) {
   const ranked = [...state.players].sort((a, b) => b.chips - a.chips || a.nickname.localeCompare(b.nickname, 'ko'));
   const podium = [ranked[1], ranked[0], ranked[2]];
-  return <div className="flex flex-col gap-7"><section className="rounded-3xl border border-amber-400/30 bg-[radial-gradient(circle_at_top,#4b3810,#100d08_68%)] p-8 lg:p-12 text-center"><p className="text-sm tracking-[0.3em] uppercase text-amber-400">Tournament Complete</p><h2 className="mt-2 text-4xl lg:text-6xl font-black text-amber-100">최종 결과</h2><div className="mt-10 flex items-end justify-center gap-3 lg:gap-8">{podium.map((player, i) => { const rank = [2, 1, 3][i]; const height = rank === 1 ? 'h-56' : rank === 2 ? 'h-44' : 'h-36'; return <div key={player?.id ?? rank} className={`w-28 lg:w-44 ${height} rounded-t-2xl bg-amber-300/10 border border-amber-300/25 flex flex-col justify-end p-4`}><div className="text-3xl">{rank === 1 ? '🏆' : rank === 2 ? '🥈' : '🥉'}</div><div className="font-bold text-white truncate">{player?.nickname ?? '-'}</div><div className="text-xs lg:text-sm text-amber-300">{player ? formatKRW(player.chips) : ''}</div><div className="mt-3 text-2xl font-black text-amber-200">{rank}</div></div>; })}</div><button data-testid="prepare-new-tournament" onClick={onPrepareNew} className="mt-10 rounded-xl bg-amber-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-[0_12px_35px_rgba(251,191,36,0.25)] transition hover:bg-amber-300 active:scale-[0.98]">새 토너먼트 준비</button></section><Leaderboard state={state} title="전체 순위" /></div>;
+  if (state.miniGame.status !== 'idle') return <div className="flex flex-col gap-5"><KeynesMiniGame state={state} admin onReveal={onRevealMiniGame} />{error && <p className="text-center text-sm text-red-400">{error}</p>}<button data-testid="prepare-new-tournament" onClick={onPrepareNew} className="self-center rounded-xl border border-zinc-600 px-6 py-3 font-bold text-zinc-200">새 토너먼트 준비</button></div>;
+  return <div className="flex flex-col gap-7"><section className="rounded-3xl border border-amber-400/30 bg-[radial-gradient(circle_at_top,#4b3810,#100d08_68%)] p-8 lg:p-12 text-center"><p className="text-sm tracking-[0.3em] uppercase text-amber-400">Tournament Complete</p><h2 className="mt-2 text-4xl lg:text-6xl font-black text-amber-100">최종 결과</h2><div className="mt-10 flex items-end justify-center gap-3 lg:gap-8">{podium.map((player, i) => { const rank = [2, 1, 3][i]; const height = rank === 1 ? 'h-56' : rank === 2 ? 'h-44' : 'h-36'; return <div key={player?.id ?? rank} className={`w-28 lg:w-44 ${height} rounded-t-2xl bg-amber-300/10 border border-amber-300/25 flex flex-col justify-end p-4`}><div className="text-3xl">{rank === 1 ? '🏆' : rank === 2 ? '🥈' : '🥉'}</div><div className="font-bold text-white truncate">{player?.nickname ?? '-'}</div><div className="text-xs lg:text-sm text-amber-300">{player ? formatKRW(player.chips) : ''}</div><div className="mt-3 text-2xl font-black text-amber-200">{rank}</div></div>; })}</div><div className="mt-10 flex flex-wrap justify-center gap-3"><button data-testid="prepare-new-tournament" onClick={onPrepareNew} className="rounded-xl bg-amber-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-[0_12px_35px_rgba(251,191,36,0.25)] transition hover:bg-amber-300 active:scale-[0.98]">새 토너먼트 준비</button><button data-testid="start-mini-game" onClick={onStartMiniGame} className="rounded-xl bg-violet-300 px-8 py-4 text-lg font-black text-violet-950 shadow-[0_12px_35px_rgba(196,181,253,0.2)] transition hover:bg-violet-200 active:scale-[0.98]">미니게임 실행하기</button></div>{error && <p className="mt-3 text-sm text-red-400">{error}</p>}</section><Leaderboard state={state} title="전체 순위" /></div>;
 }

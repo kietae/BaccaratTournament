@@ -63,6 +63,17 @@ function buildSnapshot(t, forPlayerId) {
   const adminCanPresentActiveCard =
     forPlayerId == null &&
     (round.phase === 'squeeze' || round.phase === 'extra-card');
+  const miniGame = {
+    status: t.miniGame.status,
+    submittedCount: t.miniGame.submissions.size,
+    totalPlayers: t.players.size,
+    endsAt: t.miniGame.endsAt,
+    hasSubmitted: forPlayerId != null && t.miniGame.submissions.has(forPlayerId),
+    myNumber: forPlayerId != null ? (t.miniGame.submissions.get(forPlayerId) ?? null) : null,
+    average: t.miniGame.status === 'revealed' ? t.miniGame.average : null,
+    target: t.miniGame.status === 'revealed' ? t.miniGame.target : null,
+    results: t.miniGame.status === 'revealed' ? t.miniGame.results : []
+  };
 
   let totalPot = 0;
   const mainBetSummary = {
@@ -93,6 +104,7 @@ function buildSnapshot(t, forPlayerId) {
     initialRoadGames: t.initialRoadGames,
     seedProgress: t.seedProgress,
     seedPreview: t.seedPreview,
+    miniGame,
     roundNo: t.roundNo,
     phase: round.phase,
     phaseEndsAt: round.phaseEndsAt,

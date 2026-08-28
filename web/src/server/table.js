@@ -64,6 +64,7 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, init
     roundNo: 0,
     roundHistory: [], // { roundNo, outcome, playerTotal, bankerTotal }
     round: freshRound(0),
+    miniGame: { status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null },
     timers: {}
   };
 }
@@ -485,7 +486,15 @@ function revealSeedRoadGame(t) {
     total: t.initialRoadGames,
     outcome: result.outcome,
     playerTotal: result.playerTotal,
-    bankerTotal: result.bankerTotal
+    bankerTotal: result.bankerTotal,
+    cards: [
+      { cardId: 'P1', side: 'player', ...result.playerCards[0] },
+      { cardId: 'B1', side: 'banker', ...result.bankerCards[0] },
+      { cardId: 'P2', side: 'player', ...result.playerCards[1] },
+      { cardId: 'B2', side: 'banker', ...result.bankerCards[1] },
+      ...(result.playerCards[2] ? [{ cardId: 'P3', side: 'player', ...result.playerCards[2] }] : []),
+      ...(result.bankerCards[2] ? [{ cardId: 'B3', side: 'banker', ...result.bankerCards[2] }] : [])
+    ]
   };
   t.roundHistory.push({
     roundNo: t.seedProgress - t.initialRoadGames,
@@ -509,6 +518,43 @@ function roundLimitReached(t) {
   return t.roundLimit != null && t.roundNo >= t.roundLimit;
 }
 
+function startMiniGame(t, durationSeconds = 60) {
+  if (t.status !== 'finished') throw new GameError('토너먼트 종료 후에만 미니게임을 시작할 수 있습니다');
+  if (t.miniGame.status === 'collecting') throw new GameError('이미 미니게임이 진행 중입니다');
+  const seconds = Math.max(10, Math.min(300, Math.floor(Number(durationSeconds)) || 60));
+  t.miniGame = { status: 'collecting', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: Date.now() + seconds * 1000 };
+  return t.miniGame;
+}
+
+function submitMiniGameNumber(t, playerId, value) {
+  if (t.status !== 'finished' || t.miniGame.status !== 'collecting') throw new GameError('현재 숫자를 제출할 수 없습니다');
+  if (!t.players.has(playerId)) throw new GameError('참가자 정보를 찾을 수 없습니다');
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 100) throw new GameError('0부터 100까지의 정수를 입력해 주세요');
+  t.miniGame.submissions.set(playerId, number);
+  // Changing a number is a new final submission, so it moves behind players
+  // who already submitted the same-distance answer.
+  t.miniGame.submissionOrder.set(playerId, t.miniGame.nextSubmissionOrder++);
+  return number;
+}
+
+function revealMiniGame(t) {
+  if (t.status !== 'finished' || t.miniGame.status !== 'collecting') throw new GameError('마감할 미니게임이 없습니다');
+  const entries = [...t.miniGame.submissions.entries()];
+  if (entries.length === 0) {
+    t.miniGame = { ...t.miniGame, status: 'revealed', average: null, target: null, results: [], endsAt: null };
+    return t.miniGame;
+  }
+  const average = entries.reduce((sum, [, value]) => sum + value, 0) / entries.length;
+  const target = average * 2 / 3;
+  const results = entries
+    .map(([playerId, value]) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-', value, distance: Math.abs(value - target), submittedOrder: t.miniGame.submissionOrder.get(playerId) || Infinity }))
+    .sort((a, b) => a.distance - b.distance || a.submittedOrder - b.submittedOrder)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  t.miniGame = { ...t.miniGame, status: 'revealed', average, target, results, endsAt: null };
+  return t.miniGame;
+}
+
 module.exports = {
   BETTING_SECONDS, NEXT_ROUND_SECONDS, DEFAULT_INITIAL_CHIPS, DEFAULT_BET_LIMITS,
   GameError,
@@ -518,5 +564,5 @@ module.exports = {
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
-  currentBetTotal
+  startMiniGame, submitMiniGameNumber, revealMiniGame, currentBetTotal
 };

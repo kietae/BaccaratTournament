@@ -10,6 +10,8 @@ import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
 import SqueezeCanvas from '@/components/SqueezeCanvas';
 import ResultHands from '@/components/ResultHands';
 import RoundResultCallout from '@/components/RoundResultCallout';
+import OpeningRoadGame from '@/components/OpeningRoadGame';
+import KeynesMiniGame from '@/components/KeynesMiniGame';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -301,10 +303,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
 }
 
 function PlayerSeedPreview({ state }: { state: TableState }) {
-  const preview = state.seedPreview;
-  const label = preview?.outcome === 'player' ? 'PLAYER' : preview?.outcome === 'banker' ? 'BANKER' : preview ? 'TIE' : 'READY';
-  const color = preview?.outcome === 'player' ? 'text-blue-300' : preview?.outcome === 'banker' ? 'text-red-300' : 'text-emerald-300';
-  return <div className="flex-1 flex flex-col items-center justify-center text-center"><p className="text-xs tracking-[0.24em] text-amber-300">OPENING ROAD</p><p className="mt-2 text-zinc-300">자동 게임 {state.seedProgress} / {state.initialRoadGames}</p><div key={preview?.index ?? 0} className={`mt-4 text-5xl font-black ${color} countdown-pop`}>{label}</div>{preview && <p className="mt-2 font-mono text-white/80">PLAYER {preview.playerTotal} : {preview.bankerTotal} BANKER</p>}<div className="mt-5 w-full"><BigRoadGrid road={state.bigRoad} /></div></div>;
+  return <div className="flex-1 flex flex-col items-center justify-center text-center"><OpeningRoadGame state={state} /><div className="mt-4 w-full"><BigRoadGrid road={state.bigRoad} /></div></div>;
 }
 
 function SqueezeAuthorityBanner({ state }: { state: TableState }) {
@@ -442,15 +441,20 @@ function CardCallPhase({ state }: { state: TableState }) {
 
 function ResultPhase({ state, me, onJoinNew }: { state: TableState; me: NonNullable<TableState['me']>; onJoinNew: () => void }) {
   const result = state.result;
+  async function submitMiniGame(value: number) {
+    const response = await ack<{ ok: boolean; error?: string }>('submitMiniGame', { value });
+    return response.ok ? null : (response.error || '제출하지 못했습니다');
+  }
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
-      {result && (
+      {state.miniGame.status !== 'idle' && <KeynesMiniGame state={state} onSubmit={submitMiniGame} />}
+      {state.miniGame.status === 'idle' && result && (
         <div className="flex flex-col gap-4">
           <ResultHands cards={state.cards} result={result} scale={1.15} />
           <RoundResultCallout result={result} />
         </div>
       )}
-      {me.settlement && me.settlement.length > 0 && (
+      {state.miniGame.status === 'idle' && me.settlement && me.settlement.length > 0 && (
         <div className="w-full max-w-xs flex flex-col gap-1.5">
           {me.settlement.map((s, i) => {
             const label = BET_TYPES.find((b) => b.type === s.type)?.label ?? s.type;

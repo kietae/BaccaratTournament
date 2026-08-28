@@ -107,7 +107,25 @@ export interface TableState {
   payoutMode: PayoutMode;
   initialRoadGames: number;
   seedProgress: number;
-  seedPreview: { index: number; total: number; outcome: 'player' | 'banker' | 'tie'; playerTotal: number; bankerTotal: number } | null;
+  seedPreview: {
+    index: number;
+    total: number;
+    outcome: 'player' | 'banker' | 'tie';
+    playerTotal: number;
+    bankerTotal: number;
+    cards: { cardId: string; side: 'player' | 'banker'; rank: string; suit: string }[];
+  } | null;
+  miniGame: {
+    status: 'idle' | 'collecting' | 'revealed';
+    submittedCount: number;
+    totalPlayers: number;
+    endsAt: number | null;
+    hasSubmitted: boolean;
+    myNumber: number | null;
+    average: number | null;
+    target: number | null;
+    results: { playerId: string; nickname: string; value: number; distance: number; rank: number }[];
+  };
   roundNo: number;
   phase: Phase;
   phaseEndsAt: number | null;

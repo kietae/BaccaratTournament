@@ -144,6 +144,30 @@ body {
 @keyframes countdown-pop { from { opacity: 0; transform: scale(1.45); } to { opacity: 1; transform: scale(1); } }
 .countdown-pop { animation: countdown-pop 180ms ease-out; }
 
+@keyframes seed-card-deal {
+  from { opacity: 0; transform: translateY(-28px) rotate(-5deg) scale(0.86); }
+  to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+
+@keyframes seed-result-call {
+  from { opacity: 0; transform: scale(1.3); filter: blur(5px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+.seed-card-deal {
+  opacity: 0;
+  animation: seed-card-deal 260ms cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
+}
+
+.seed-result-call {
+  opacity: 0;
+  animation: seed-result-call 240ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seed-card-deal, .seed-result-call { opacity: 1; animation: none; }
+}
+
 @keyframes rotate-phone {
   0%, 18% { transform: rotate(0deg); }
   55%, 100% { transform: rotate(90deg); }

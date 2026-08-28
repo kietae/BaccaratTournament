@@ -14,7 +14,9 @@ const AUTO_REVEAL_MS = 1050; // dealer peel animation before an unbacked card op
 const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
 const HAND_CALL_MS = 1500; // leave room for the spoken hand total / result
 const SQUEEZE_REVEAL_FRAC = 0.94;
-const SEED_GAME_MS = 1200;
+// Card dealing/reveal occupies most of this interval; only a short beat is
+// left between the result call and the next opening-road game.
+const SEED_GAME_MS = 1550;
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -219,6 +221,31 @@ function registerSocketServer(io) {
       ack?.({ ok: true });
     });
 
+    socket.on('admin:startMiniGame', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try {
+        table.startMiniGame(t);
+        t.timers.miniGame = setTimeout(() => {
+          if (!t || t.miniGame.status !== 'collecting') return;
+          delete t.timers.miniGame;
+          table.revealMiniGame(t);
+          broadcastState();
+        }, Math.max(0, t.miniGame.endsAt - Date.now()));
+        ack?.({ ok: true });
+        broadcastState();
+      } catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:revealMiniGame', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try {
+        if (t.timers.miniGame) { clearTimeout(t.timers.miniGame); delete t.timers.miniGame; }
+        table.revealMiniGame(t);
+        ack?.({ ok: true });
+        broadcastState();
+      } catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
     socket.on('join', (payload, ack) => {
       if (!t) { ack?.({ ok: false, error: '진행 중인 토너먼트가 없습니다' }); return; }
       if (!payload || String(payload.code || '').toUpperCase() !== t.joinCode) {
@@ -267,6 +294,16 @@ function registerSocketServer(io) {
       } catch (e) {
         ack?.({ ok: false, error: e.message });
       }
+    });
+
+    socket.on('submitMiniGame', (payload, ack) => {
+      const playerId = socketPlayer.get(socket.id);
+      if (!t || !playerId) { ack?.({ ok: false, error: '참가자 정보가 없습니다' }); return; }
+      try {
+        table.submitMiniGameNumber(t, playerId, payload?.value);
+        ack?.({ ok: true });
+        broadcastState();
+      } catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
     socket.on('squeezeProgress', (payload) => {

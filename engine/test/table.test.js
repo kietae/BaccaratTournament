@@ -267,3 +267,34 @@ test('join code contains exactly three English letters', () => {
   assert.equal(tournament.payoutMode, 'no-commission');
   assert.equal(table.createTournament({ payoutMode: 'commission' }).payoutMode, 'commission');
 });
+
+test('Keynes mini-game runs only after the tournament and ranks closest to two-thirds of the average', () => {
+  const tournament = table.createTournament({ name: 'beauty contest' });
+  const a = table.addPlayer(tournament, 'Alpha');
+  const b = table.addPlayer(tournament, 'Bravo');
+  const c = table.addPlayer(tournament, 'Charlie');
+
+  assert.throws(() => table.startMiniGame(tournament), /토너먼트 종료 후/);
+  tournament.status = 'finished';
+  table.startMiniGame(tournament);
+  assert.equal(tournament.miniGame.status, 'collecting');
+  assert.ok(tournament.miniGame.endsAt > Date.now());
+  assert.throws(() => table.submitMiniGameNumber(tournament, a.id, 101), /0부터 100/);
+
+  table.submitMiniGameNumber(tournament, a.id, 20);
+  table.submitMiniGameNumber(tournament, b.id, 20);
+  table.submitMiniGameNumber(tournament, a.id, 20); // changing/re-submitting moves behind Bravo for a tie
+  table.submitMiniGameNumber(tournament, c.id, 50);
+  table.submitMiniGameNumber(tournament, c.id, 50); // resubmission replaces the previous value
+  const collectingAdmin = buildSnapshot(tournament, null).miniGame;
+  const collectingPlayer = buildSnapshot(tournament, a.id).miniGame;
+  assert.equal(collectingAdmin.submittedCount, 3);
+  assert.deepEqual(collectingAdmin.results, []);
+  assert.equal(collectingAdmin.myNumber, null);
+  assert.equal(collectingPlayer.myNumber, 20);
+
+  const game = table.revealMiniGame(tournament);
+  assert.equal(game.average, 30);
+  assert.equal(game.target, 20);
+  assert.deepEqual(game.results.map((entry) => [entry.nickname, entry.rank]), [['Bravo', 1], ['Alpha', 2], ['Charlie', 3]]);
+});
