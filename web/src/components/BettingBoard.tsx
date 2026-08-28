@@ -9,10 +9,11 @@ import type { BetType, MeView, TableState } from '@/lib/types';
 const PLAYER_OPTIONS: BetType[] = ['playerPair', 'player7TwoCard', 'player7ThreeCard', 'comboP7B6'];
 const BANKER_OPTIONS: BetType[] = ['bankerPair', 'banker6TwoCard', 'banker6ThreeCard'];
 
-export default function BettingBoard({ me, locked, betLimits, onPlaceBet, onClearBet, onConfirm }: {
+export default function BettingBoard({ me, locked, betLimits, payoutMode, onPlaceBet, onClearBet, onConfirm }: {
   me: MeView;
   locked: boolean;
   betLimits: TableState['betLimits'];
+  payoutMode: TableState['payoutMode'];
   onPlaceBet: (type: BetType, amount: number) => void;
   onClearBet: (type: BetType) => void;
   onConfirm: () => void;
@@ -46,7 +47,7 @@ export default function BettingBoard({ me, locked, betLimits, onPlaceBet, onClea
       <div key={type} className="relative min-w-0">
         <button type="button" data-testid={`bet-${type}`} disabled={locked} onClick={() => addChip(type)} className={`${main ? 'bet-main-button' : 'bet-option-button'} bet-type-${type} w-full active:scale-[0.97] transition disabled:opacity-45`}>
           <span className={main ? 'bet-main-label' : 'bet-option-label'}>{definition.label}</span>
-          <span className="bet-odds">{definition.odds}:1</span>
+          <span className="bet-odds">{type === 'banker' && payoutMode === 'no-commission' ? '1:1 · 6은 0.5:1' : `${definition.odds}:1`}</span>
           <span className="bet-chip-space">{amount > 0 && <ChipStack amount={amount} compact />}</span>
         </button>
         {amount > 0 && !locked && <button type="button" aria-label={`${definition.label} 베팅 취소`} data-testid={`clear-${type}`} onClick={() => clearBet(type)} className="bet-clear">×</button>}

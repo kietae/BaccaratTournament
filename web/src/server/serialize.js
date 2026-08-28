@@ -89,6 +89,7 @@ function buildSnapshot(t, forPlayerId) {
     roundLimit: t.roundLimit,
     bettingSeconds: t.bettingSeconds,
     betLimits: t.betLimits,
+    payoutMode: t.payoutMode,
     initialRoadGames: t.initialRoadGames,
     seedProgress: t.seedProgress,
     seedPreview: t.seedPreview,

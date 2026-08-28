@@ -34,7 +34,7 @@ function positiveNumber(value, fallback) {
   return n > 0 ? n : fallback;
 }
 
-function createTournament({ name, initialChips, roundLimit, bettingSeconds, initialRoadGames, betLimits } = {}) {
+function createTournament({ name, initialChips, roundLimit, bettingSeconds, initialRoadGames, betLimits, payoutMode } = {}) {
   const limits = {
     mainMin: positiveNumber(betLimits?.mainMin, DEFAULT_BET_LIMITS.mainMin),
     mainMax: positiveNumber(betLimits?.mainMax, DEFAULT_BET_LIMITS.mainMax),
@@ -53,6 +53,7 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, init
     seedProgress: 0,
     seedPreview: null,
     betLimits: limits,
+    payoutMode: payoutMode === 'commission' ? 'commission' : 'no-commission',
     adminToken: token(),
     joinCode: joinCode(),
     status: 'lobby', // lobby | active | finished
@@ -426,7 +427,7 @@ function settleRound(t) {
       settlements.set(playerId, []);
       continue;
     }
-    const settled = engine.settleBets(items, result);
+    const settled = engine.settleBets(items, result, t.payoutMode);
     let delta = 0;
     for (const s of settled) delta += s.net;
     player.chips += delta;

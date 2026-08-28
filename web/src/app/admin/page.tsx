@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { ack, getSocket, ADMIN_TOKEN_KEY } from '@/lib/socket';
-import type { CardView, TableState } from '@/lib/types';
+import type { CardView, PayoutMode, TableState } from '@/lib/types';
 import { formatKRW } from '@/lib/chips';
 import BigRoadGrid from '@/components/BigRoadGrid';
 import CardSlot, { EmptyCardSlot } from '@/components/CardSlot';
@@ -31,6 +31,7 @@ export default function AdminPage() {
   const [mainMax, setMainMax] = useState(10_000_000);
   const [sideMin, setSideMin] = useState(10_000);
   const [sideMax, setSideMax] = useState(1_000_000);
+  const [payoutMode, setPayoutMode] = useState<PayoutMode>('no-commission');
   const [error, setError] = useState<string | null>(null);
   const [presentation, setPresentation] = useState(false);
   const tokenRef = useRef<string | null>(null);
@@ -132,7 +133,7 @@ export default function AdminPage() {
 
   async function createTournament() {
     setError(null);
-    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, initialRoadGames, betLimits: { mainMin, mainMax, sideMin, sideMax } });
+    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, initialRoadGames, payoutMode, betLimits: { mainMin, mainMax, sideMin, sideMax } });
     if (!res.ok || !res.adminToken) { setError(res.error || '생성 실패'); return; }
     localStorage.setItem(ADMIN_TOKEN_KEY, res.adminToken);
     tokenRef.current = res.adminToken;
@@ -168,15 +169,21 @@ export default function AdminPage() {
       <div className="text-center"><p className="text-xs tracking-[0.28em] text-amber-500 uppercase">Workshop Event</p><h1 className="mt-2 text-2xl font-bold text-amber-200">바카라 토너먼트 생성</h1></div>
       <div className="flex flex-col gap-3 w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
         <Field label="이름"><input value={name} onChange={(e) => setName(e.target.value)} className="admin-input" /></Field>
-        <Field label="초기 지급 칩"><input type="number" value={initialChips} onChange={(e) => setInitialChips(Number(e.target.value))} className="admin-input" /></Field>
-        <Field label="라운드 수 제한 (0 = 무제한)"><input type="number" min={0} value={roundLimit} onChange={(e) => setRoundLimit(Number(e.target.value))} className="admin-input" /></Field>
-        <Field label="베팅 대기 시간(초)"><input type="number" min={5} value={bettingSeconds} onChange={(e) => setBettingSeconds(Number(e.target.value))} className="admin-input" /></Field>
-        <Field label="시작 전 자동 게임 수"><input type="number" min={0} max={50} value={initialRoadGames} onChange={(e) => setInitialRoadGames(Number(e.target.value))} className="admin-input" /></Field>
+        <Field label="초기 지급 칩"><FormattedNumberInput value={initialChips} onChange={setInitialChips} /></Field>
+        <Field label="라운드 수 제한 (0 = 무제한)"><FormattedNumberInput value={roundLimit} onChange={setRoundLimit} min={0} /></Field>
+        <Field label="베팅 대기 시간(초)"><FormattedNumberInput value={bettingSeconds} onChange={setBettingSeconds} min={5} /></Field>
+        <Field label="시작 전 자동 게임 수"><FormattedNumberInput value={initialRoadGames} onChange={setInitialRoadGames} min={0} max={50} /></Field>
+        <Field label="뱅커 정산 방식">
+          <select value={payoutMode} onChange={(event) => setPayoutMode(event.target.value as PayoutMode)} className="admin-input">
+            <option value="no-commission">노커미션 (뱅커 6 승리 시 0.5배)</option>
+            <option value="commission">커미션 (뱅커 승리 시 0.95배)</option>
+          </select>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="메인벳 최소"><input type="number" min={1} value={mainMin} onChange={(e) => setMainMin(Number(e.target.value))} className="admin-input" /></Field>
-          <Field label="메인벳 최대"><input type="number" min={1} value={mainMax} onChange={(e) => setMainMax(Number(e.target.value))} className="admin-input" /></Field>
-          <Field label="옵션벳 최소"><input type="number" min={1} value={sideMin} onChange={(e) => setSideMin(Number(e.target.value))} className="admin-input" /></Field>
-          <Field label="옵션벳 최대"><input type="number" min={1} value={sideMax} onChange={(e) => setSideMax(Number(e.target.value))} className="admin-input" /></Field>
+          <Field label="메인벳 최소"><FormattedNumberInput value={mainMin} onChange={setMainMin} min={1} /></Field>
+          <Field label="메인벳 최대"><FormattedNumberInput value={mainMax} onChange={setMainMax} min={1} /></Field>
+          <Field label="옵션벳 최소"><FormattedNumberInput value={sideMin} onChange={setSideMin} min={1} /></Field>
+          <Field label="옵션벳 최대"><FormattedNumberInput value={sideMax} onChange={setSideMax} min={1} /></Field>
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button data-testid="create-tournament" onClick={createTournament} className="rounded-xl bg-amber-500 text-zinc-950 font-bold py-3 active:scale-[0.98] transition">생성</button>
@@ -195,6 +202,23 @@ export default function AdminPage() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="flex flex-col gap-1 text-sm text-zinc-400">{label}{children}</label>; }
+
+function FormattedNumberInput({ value, onChange, min, max }: { value: number; onChange: (value: number) => void; min?: number; max?: number }) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={value.toLocaleString('ko-KR')}
+      onChange={(event) => {
+        const digits = event.target.value.replace(/\D/g, '');
+        onChange(digits ? Number(digits) : 0);
+      }}
+      min={min}
+      max={max}
+      className="admin-input"
+    />
+  );
+}
 
 function Lobby({ state, qr, onStart, error }: { state: TableState; qr: string | null; onStart: () => void; error: string | null }) {
   return <div className="grid lg:grid-cols-[minmax(320px,0.8fr)_1.2fr] gap-6 items-stretch">

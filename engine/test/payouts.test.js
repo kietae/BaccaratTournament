@@ -34,11 +34,30 @@ test('main bet loss: banker bet on a player-win round loses the stake', () => {
   assert.equal(settled.payout, 0);
 });
 
-test('banker win pays 0.95:1 (5% commission)', () => {
+test('banker win pays 1:1 by default in no-commission mode', () => {
   const result = baseResult({ outcome: 'banker' });
   const [settled] = settleBets([{ type: 'banker', amount: 1000 }], result);
+  assert.equal(settled.net, 1000);
+  assert.equal(settled.payout, 2000);
+});
+
+test('banker 6 win pays 0.5:1 in no-commission mode', () => {
+  const result = baseResult({ outcome: 'banker', bankerTotal: 6 });
+  const [settled] = settleBets([{ type: 'banker', amount: 1000 }], result);
+  assert.equal(settled.net, 500);
+  assert.equal(settled.payout, 1500);
+});
+
+test('commission mode pays every banker win at 0.95:1', () => {
+  const result = baseResult({ outcome: 'banker', bankerTotal: 6 });
+  const [settled] = settleBets([{ type: 'banker', amount: 1000 }], result, 'commission');
   assert.equal(settled.net, 950);
   assert.equal(settled.payout, 1950);
+});
+
+test('unknown payout mode throws', () => {
+  const result = baseResult({ outcome: 'banker' });
+  assert.throws(() => settleBets([{ type: 'banker', amount: 1000 }], result, 'mystery'));
 });
 
 test('tie: player/banker bets push (stake returned, no win/loss)', () => {

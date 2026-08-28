@@ -24,6 +24,7 @@ export type BetType =
   | 'comboP7B6';
 
 export type Edge = 'left' | 'right' | 'top' | 'bottom';
+export type PayoutMode = 'commission' | 'no-commission';
 
 export interface CardView {
   cardId: string;
@@ -103,6 +104,7 @@ export interface TableState {
   roundLimit: number | null;
   bettingSeconds: number;
   betLimits: { mainMin: number; mainMax: number; sideMin: number; sideMax: number };
+  payoutMode: PayoutMode;
   initialRoadGames: number;
   seedProgress: number;
   seedPreview: { index: number; total: number; outcome: 'player' | 'banker' | 'tie'; playerTotal: number; bankerTotal: number } | null;

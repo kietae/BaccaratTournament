@@ -230,6 +230,7 @@ function BettingPhase({ state, me }: { state: TableState; me: NonNullable<TableS
       me={me}
       locked={state.phase !== 'betting-wait'}
       betLimits={state.betLimits}
+      payoutMode={state.payoutMode}
       onPlaceBet={placeBet}
       onClearBet={clearBet}
       onConfirm={confirmBets}

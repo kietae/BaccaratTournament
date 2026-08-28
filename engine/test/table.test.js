@@ -262,5 +262,8 @@ test('player and banker highest bettors receive independent squeeze authority', 
 });
 
 test('join code contains exactly three English letters', () => {
-  assert.match(table.createTournament({}).joinCode, /^[A-Z]{3}$/);
+  const tournament = table.createTournament({});
+  assert.match(tournament.joinCode, /^[A-Z]{3}$/);
+  assert.equal(tournament.payoutMode, 'no-commission');
+  assert.equal(table.createTournament({ payoutMode: 'commission' }).payoutMode, 'commission');
 });

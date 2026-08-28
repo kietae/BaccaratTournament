@@ -38,7 +38,10 @@ function evaluateSideBets(result) {
 
 // bets: [{ type, amount }]. Returns each bet annotated with result/payout/net.
 // payout = total chips returned to the player (0 on a loss); net = payout - amount.
-function settleBets(bets, result) {
+function settleBets(bets, result, payoutMode = 'no-commission') {
+  if (payoutMode !== 'commission' && payoutMode !== 'no-commission') {
+    throw new Error('Unknown payout mode: ' + payoutMode);
+  }
   const side = evaluateSideBets(result);
   const hit = {
     player: result.outcome === 'player',
@@ -59,9 +62,14 @@ function settleBets(bets, result) {
 
     if (hit[bet.type]) {
       const cardCount = result.playerCards.length + result.bankerCards.length;
-      const odds = bet.type === 'comboP7B6'
-        ? ({ 4: 30, 5: 40, 6: 100 }[cardCount] || PAYOUTS.comboP7B6)
-        : PAYOUTS[bet.type];
+      let odds;
+      if (bet.type === 'banker') {
+        odds = payoutMode === 'commission' ? PAYOUTS.banker : result.bankerTotal === 6 ? 0.5 : 1;
+      } else {
+        odds = bet.type === 'comboP7B6'
+          ? ({ 4: 30, 5: 40, 6: 100 }[cardCount] || PAYOUTS.comboP7B6)
+          : PAYOUTS[bet.type];
+      }
       const net = bet.amount * odds;
       return { ...bet, result: 'win', payout: bet.amount + net, net };
     }

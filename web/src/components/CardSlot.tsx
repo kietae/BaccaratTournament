@@ -16,6 +16,7 @@ export default function CardSlot({ card, dim, scale = 1 }: { card: CardView; dim
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
+    let active = true;
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     // A card being flipped reaches rotateY(90deg), where its bounding box can
     // measure nearly zero. Always paint at the card's logical dimensions so
@@ -28,11 +29,16 @@ export default function CardSlot({ card, dim, scale = 1 }: { card: CardView; dim
     const ctx = context;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     function paint() {
+      // Image assets finish loading asynchronously. A callback registered by
+      // the previous card can otherwise repaint this reused canvas with that
+      // old face in the middle of the next card's flip animation.
+      if (!active || ref.current !== canvas) return;
       ctx.clearRect(0, 0, w, h);
       if (card.revealed && card.rank && card.suit) drawCardFront(ctx, w, h, card.rank, card.suit, paint);
       else drawCardBack(ctx, w, h, paint);
     }
     paint();
+    return () => { active = false; };
   }, [card.revealed, card.rank, card.suit, cardWidth, cardHeight]);
   const autoFlip = !card.needsSqueeze && !card.revealed && (card.pct ?? 0) > 0;
   const flipAngle = autoFlip ? Math.min(90, ((card.pct ?? 0) / 0.94) * 90) : 0;
