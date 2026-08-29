@@ -11,7 +11,7 @@ import SqueezeCanvas from '@/components/SqueezeCanvas';
 import ResultHands from '@/components/ResultHands';
 import RoundResultCallout from '@/components/RoundResultCallout';
 import OpeningRoadGame from '@/components/OpeningRoadGame';
-import KeynesMiniGame from '@/components/KeynesMiniGame';
+import KeynesMiniGame, { MiniGameRules } from '@/components/KeynesMiniGame';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -140,6 +140,18 @@ export default function PlayPage() {
   const isSqueezingPhase = state.phase === 'squeeze' || state.phase === 'extra-card';
   const isCardCallPhase = state.phase === 'dealer-call' || state.phase === 'third-card-call';
 
+  async function submitMiniGame(value: number) {
+    const response = await ack<{ ok: boolean; error?: string }>('submitMiniGame', { value });
+    return response.ok ? null : (response.error || '제출하지 못했습니다');
+  }
+
+  if (state.miniGame.status !== 'idle') return (
+    <main className="h-[100svh] overflow-hidden flex flex-col gap-1.5 p-2 max-w-3xl mx-auto w-full">
+      <TopBar state={state} />
+      <div className="flex-1 min-h-0 flex items-center justify-center"><KeynesMiniGame state={state} onSubmit={submitMiniGame} /></div>
+    </main>
+  );
+
   return (
     <>
     <div className="landscape-gate fixed inset-0 z-50 flex-col items-center justify-center gap-5 bg-[radial-gradient(circle_at_top,#34204e,#0b0a12_68%)] p-8 text-center">
@@ -157,10 +169,11 @@ export default function PlayPage() {
       )}
 
       {state.status === 'lobby' && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-3 text-center">
           <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
           <p className="font-semibold text-amber-200">관리자가 토너먼트를 시작하기를 기다리는 중</p>
           <p className="text-xs text-zinc-500">이 화면을 그대로 유지해 주세요.</p>
+          <div className="mt-2 w-full"><MiniGameRules /></div>
         </div>
       )}
 

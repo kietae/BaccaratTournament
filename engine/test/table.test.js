@@ -268,14 +268,12 @@ test('join code contains exactly three English letters', () => {
   assert.equal(table.createTournament({ payoutMode: 'commission' }).payoutMode, 'commission');
 });
 
-test('Keynes mini-game runs only after the tournament and ranks closest to two-thirds of the average', () => {
+test('Keynes mini-game runs independently in the lobby and ranks closest to two-thirds of the average', () => {
   const tournament = table.createTournament({ name: 'beauty contest' });
   const a = table.addPlayer(tournament, 'Alpha');
   const b = table.addPlayer(tournament, 'Bravo');
   const c = table.addPlayer(tournament, 'Charlie');
 
-  assert.throws(() => table.startMiniGame(tournament), /토너먼트 종료 후/);
-  tournament.status = 'finished';
   table.startMiniGame(tournament);
   assert.equal(tournament.miniGame.status, 'collecting');
   assert.ok(tournament.miniGame.endsAt > Date.now());
@@ -302,7 +300,6 @@ test('Keynes mini-game runs only after the tournament and ranks closest to two-t
 test('Lowest Unique Number awards the smallest number submitted by exactly one player', () => {
   const tournament = table.createTournament({ name: 'lowest unique' });
   const players = ['A', 'B', 'C', 'D'].map((name) => table.addPlayer(tournament, name));
-  tournament.status = 'finished';
   table.startMiniGame(tournament, 'lowest-unique');
   assert.equal(tournament.miniGame.type, 'lowest-unique');
   assert.throws(() => table.submitMiniGameNumber(tournament, players[0].id, 0), /1부터 50/);

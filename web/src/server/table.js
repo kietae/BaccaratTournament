@@ -507,6 +507,8 @@ function revealSeedRoadGame(t) {
 }
 
 function startTournament(t) {
+  if (t.miniGame.status === 'collecting') throw new GameError('진행 중인 미니게임을 먼저 마감해 주세요');
+  t.miniGame = { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null };
   t.status = 'active';
   if (t.initialRoadGames > 0) {
     t.round.phase = 'road-seeding';
@@ -519,7 +521,7 @@ function roundLimitReached(t) {
 }
 
 function startMiniGame(t, type = 'beauty-contest', durationSeconds = 60) {
-  if (t.status !== 'finished') throw new GameError('토너먼트 종료 후에만 미니게임을 시작할 수 있습니다');
+  if (t.status === 'active') throw new GameError('바카라 토너먼트 진행 중에는 미니게임을 시작할 수 없습니다');
   if (t.miniGame.status === 'collecting') throw new GameError('이미 미니게임이 진행 중입니다');
   if (type !== 'beauty-contest' && type !== 'lowest-unique') throw new GameError('지원하지 않는 미니게임입니다');
   const seconds = Math.max(10, Math.min(300, Math.floor(Number(durationSeconds)) || 60));
@@ -528,7 +530,7 @@ function startMiniGame(t, type = 'beauty-contest', durationSeconds = 60) {
 }
 
 function submitMiniGameNumber(t, playerId, value) {
-  if (t.status !== 'finished' || t.miniGame.status !== 'collecting') throw new GameError('현재 숫자를 제출할 수 없습니다');
+  if (t.status === 'active' || t.miniGame.status !== 'collecting') throw new GameError('현재 숫자를 제출할 수 없습니다');
   if (!t.players.has(playerId)) throw new GameError('참가자 정보를 찾을 수 없습니다');
   const number = Number(value);
   const min = t.miniGame.type === 'lowest-unique' ? 1 : 0;
@@ -542,7 +544,7 @@ function submitMiniGameNumber(t, playerId, value) {
 }
 
 function revealMiniGame(t) {
-  if (t.status !== 'finished' || t.miniGame.status !== 'collecting') throw new GameError('마감할 미니게임이 없습니다');
+  if (t.status === 'active' || t.miniGame.status !== 'collecting') throw new GameError('마감할 미니게임이 없습니다');
   const entries = [...t.miniGame.submissions.entries()];
   if (entries.length === 0) {
     t.miniGame = { ...t.miniGame, status: 'revealed', average: null, target: null, results: [], endsAt: null };

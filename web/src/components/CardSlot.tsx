@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { drawCardBack, drawCardFront } from './cardFace';
 import type { CardView } from '@/lib/types';
 
@@ -13,7 +13,7 @@ export default function CardSlot({ card, dim, scale = 1 }: { card: CardView; dim
   const cardWidth = 44 * scale;
   const cardHeight = 64 * scale;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
     let active = true;

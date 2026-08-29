@@ -3,7 +3,7 @@
 import type { CardView, TableState } from '@/lib/types';
 import CardSlot from './CardSlot';
 
-const DEAL_STEP_MS = 180;
+const DEAL_STEP_MS = 230;
 
 export default function OpeningRoadGame({ state, large = false }: { state: TableState; large?: boolean }) {
   const preview = state.seedPreview;

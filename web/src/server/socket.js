@@ -14,9 +14,9 @@ const AUTO_REVEAL_MS = 1050; // dealer peel animation before an unbacked card op
 const THIRD_CARD_CALL_MS = 1100; // call first, then slide the third card onto the table
 const HAND_CALL_MS = 1500; // leave room for the spoken hand total / result
 const SQUEEZE_REVEAL_FRAC = 0.94;
-// Card dealing/reveal occupies most of this interval; only a short beat is
-// left between the result call and the next opening-road game.
-const SEED_GAME_MS = 1550;
+// Give each opening-road hand enough time for the cards and result to register
+// before replacing it with the next hand.
+const SEED_GAME_MS = 2100;
 
 // Single active tournament per server process (see table.js for rationale).
 let t = null;
@@ -64,7 +64,7 @@ function registerSocketServer(io) {
         } else step();
       }, SEED_GAME_MS);
     };
-    t.timers.seedRoad = setTimeout(step, 500);
+    t.timers.seedRoad = setTimeout(step, 700);
   }
 
   function advanceFromBetting() {
