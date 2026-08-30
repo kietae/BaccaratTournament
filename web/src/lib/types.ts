@@ -43,6 +43,7 @@ export interface CardView {
 export interface PlayerView {
   id: string;
   nickname: string;
+  employeeId: string;
   chips: number;
   connected: boolean;
 }
@@ -127,6 +128,15 @@ export interface TableState {
     target: number | null;
     results: { playerId: string; nickname: string; value: number; distance: number; rank: number; unique?: boolean; count?: number }[];
   };
+  raffle: {
+    status: 'idle' | 'collecting' | 'finished';
+    entries: { playerId: string; number: number; nickname: string }[];
+    myNumber: number | null;
+    prizes: { id: string; name: string }[];
+    winners: { prizeId: string; prizeName: string; playerId: string; number: number; nickname: string; employeeId: string; at: number }[];
+    remainingNumbers: number[];
+  };
+  awards: { category: string; title: string; playerId: string; nickname: string; employeeId: string; at: number }[];
   roundNo: number;
   phase: Phase;
   phaseEndsAt: number | null;

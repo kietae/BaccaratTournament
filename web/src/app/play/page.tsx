@@ -12,6 +12,7 @@ import ResultHands from '@/components/ResultHands';
 import RoundResultCallout from '@/components/RoundResultCallout';
 import OpeningRoadGame from '@/components/OpeningRoadGame';
 import KeynesMiniGame, { MiniGameRules } from '@/components/KeynesMiniGame';
+import PrizeDraw from '@/components/PrizeDraw';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -174,6 +175,7 @@ export default function PlayPage() {
           <p className="font-semibold text-amber-200">관리자가 토너먼트를 시작하기를 기다리는 중</p>
           <p className="text-xs text-zinc-500">이 화면을 그대로 유지해 주세요.</p>
           <div className="mt-2 w-full"><MiniGameRules /></div>
+          <div className="mt-2 w-full"><PrizeDraw state={state} /></div>
         </div>
       )}
 

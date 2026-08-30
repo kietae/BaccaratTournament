@@ -403,7 +403,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         drawCardFront(front, textureWidth, textureHeight, current.rank!, current.suit!, () => {
           lastRank = '';
           lastSuit = '';
-        }, 'back');
+        });
         lastRank = current.rank!;
         lastSuit = current.suit!;
       }

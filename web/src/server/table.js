@@ -65,6 +65,8 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, init
     roundHistory: [], // { roundNo, outcome, playerTotal, bankerTotal }
     round: freshRound(0),
     miniGame: { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null },
+    raffle: { status: 'idle', entries: new Map(), nextNumber: 1, prizes: [], winners: [] },
+    awards: [],
     timers: {}
   };
 }
@@ -86,11 +88,14 @@ function freshRound(roundNo) {
   };
 }
 
-function addPlayer(t, nickname) {
+function addPlayer(t, nickname, employeeId) {
+  const normalizedEmployeeId = String(employeeId || `INTERNAL-${t.players.size + 1}`).trim().slice(0, 20);
+  if ([...t.players.values()].some((p) => p.employeeId === normalizedEmployeeId)) throw new GameError('이미 참가한 사번입니다');
   const player = {
     id: id(),
     token: token(),
     nickname: String(nickname || '').trim().slice(0, 20) || '플레이어',
+    employeeId: normalizedEmployeeId,
     chips: t.initialChips,
     connected: false,
     socketId: null,
@@ -160,6 +165,9 @@ function confirmBets(t, playerId) {
   if (!bet.confirmed) {
     bet.confirmed = true;
     bet.confirmedAt = Date.now();
+  } else {
+    bet.confirmed = false;
+    bet.confirmedAt = null;
   }
   return bet;
 }
@@ -570,7 +578,49 @@ function revealMiniGame(t) {
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
   }
   t.miniGame = { ...t.miniGame, status: 'revealed', average, target, results, endsAt: null };
+  const winner = results.find((entry) => entry.rank === 1);
+  if (winner && !t.awards.some((award) => award.category === `mini:${t.miniGame.type}`)) {
+    t.awards.push({ category: `mini:${t.miniGame.type}`, title: t.miniGame.type === 'lowest-unique' ? '최저 유일 숫자 우승' : '뷰티 콘테스트 우승', playerId: winner.playerId, nickname: winner.nickname, employeeId: t.players.get(winner.playerId)?.employeeId || '', at: Date.now() });
+  }
   return t.miniGame;
+}
+
+function enterRaffle(t, playerId) {
+  if (t.status === 'active') throw new GameError('바카라 진행 중에는 경품 추첨에 참가할 수 없습니다');
+  if (!t.players.has(playerId)) throw new GameError('참가자 정보를 찾을 수 없습니다');
+  if (t.raffle.status === 'finished') throw new GameError('경품 추첨이 종료되었습니다');
+  if (!t.raffle.entries.has(playerId)) t.raffle.entries.set(playerId, t.raffle.nextNumber++);
+  t.raffle.status = 'collecting';
+  return t.raffle.entries.get(playerId);
+}
+
+function addRafflePrize(t, name) {
+  const prizeName = String(name || '').trim().slice(0, 60);
+  if (!prizeName) throw new GameError('경품명을 입력해 주세요');
+  t.raffle.prizes.push({ id: id(), name: prizeName });
+  t.raffle.status = 'collecting';
+}
+
+function drawRaffleWinner(t) {
+  const wonIds = new Set(t.raffle.winners.map((winner) => winner.playerId));
+  const candidates = [...t.raffle.entries.entries()].filter(([playerId]) => !wonIds.has(playerId));
+  const prize = t.raffle.prizes[t.raffle.winners.length];
+  if (!prize) throw new GameError('추첨할 경품이 없습니다');
+  if (!candidates.length) throw new GameError('남은 추첨 참가자가 없습니다');
+  const [playerId, number] = candidates[crypto.randomInt(candidates.length)];
+  const player = t.players.get(playerId);
+  const winner = { prizeId: prize.id, prizeName: prize.name, playerId, number, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() };
+  t.raffle.winners.push(winner);
+  if (t.raffle.winners.length >= t.raffle.prizes.length) t.raffle.status = 'finished';
+  t.awards.push({ category: `raffle:${prize.id}`, title: `경품 당첨 · ${prize.name}`, playerId, nickname: player.nickname, employeeId: player.employeeId, at: winner.at });
+  return winner;
+}
+
+function recordTournamentAwards(t) {
+  if (t.awards.some((award) => award.category === 'baccarat:1')) return;
+  [...t.players.values()].sort((a, b) => b.chips - a.chips || a.joinedAt - b.joinedAt).slice(0, 3).forEach((player, index) => {
+    t.awards.push({ category: `baccarat:${index + 1}`, title: `바카라 대회 ${index + 1}등`, playerId: player.id, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
+  });
 }
 
 module.exports = {
@@ -582,5 +632,5 @@ module.exports = {
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
-  startMiniGame, submitMiniGameNumber, revealMiniGame, currentBetTotal
+  startMiniGame, submitMiniGameNumber, revealMiniGame, enterRaffle, addRafflePrize, drawRaffleWinner, recordTournamentAwards, currentBetTotal
 };

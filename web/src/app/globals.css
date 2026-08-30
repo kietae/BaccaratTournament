@@ -195,3 +195,6 @@ body {
   .betting-zones { grid-template-columns: 1fr 0.78fr 1fr; }
   .bet-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@keyframes raffle-spin { to { transform: rotate(360deg); } }
+.raffle-wheel-spinning { animation: raffle-spin .55s linear infinite; }
+.raffle-wheel-stopping { animation: raffle-spin 2.4s cubic-bezier(.1,.65,.2,1) forwards; }

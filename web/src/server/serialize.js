@@ -29,7 +29,7 @@ function cardView(entry, canSeeActiveCard, needsSqueeze, dealt) {
 }
 
 function playerPublicView(p) {
-  return { id: p.id, nickname: p.nickname, chips: p.chips, connected: p.connected };
+  return { id: p.id, nickname: p.nickname, employeeId: p.employeeId, chips: p.chips, connected: p.connected };
 }
 
 // Full snapshot sent to `forPlayerId` (or the admin view when null/omitted).
@@ -75,6 +75,15 @@ function buildSnapshot(t, forPlayerId) {
     target: t.miniGame.status === 'revealed' ? t.miniGame.target : null,
     results: t.miniGame.status === 'revealed' ? t.miniGame.results : []
   };
+  const raffleEntries = [...t.raffle.entries.entries()].map(([playerId, number]) => ({ playerId, number, nickname: t.players.get(playerId)?.nickname || '-' }));
+  const raffle = {
+    status: t.raffle.status,
+    entries: raffleEntries,
+    myNumber: forPlayerId ? (t.raffle.entries.get(forPlayerId) ?? null) : null,
+    prizes: t.raffle.prizes,
+    winners: t.raffle.winners,
+    remainingNumbers: raffleEntries.filter((entry) => !t.raffle.winners.some((winner) => winner.playerId === entry.playerId)).map((entry) => entry.number)
+  };
 
   let totalPot = 0;
   const mainBetSummary = {
@@ -106,6 +115,8 @@ function buildSnapshot(t, forPlayerId) {
     seedProgress: t.seedProgress,
     seedPreview: t.seedPreview,
     miniGame,
+    raffle,
+    awards: t.awards,
     roundNo: t.roundNo,
     phase: round.phase,
     phaseEndsAt: round.phaseEndsAt,

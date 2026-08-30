@@ -91,12 +91,6 @@ function registerSocketServer(io) {
     }, finished ? DEAL_SETTLE_MS : DEAL_STEP_MS);
   }
 
-  function maybeAdvanceEarly() {
-    if (t && t.status === 'active' && t.round.phase === 'betting-wait' && table.allActivePlayersConfirmed(t)) {
-      advanceFromBetting();
-    }
-  }
-
   // Opens, one at a time with a dealer-like pace, every upcoming card that
   // nobody has a bet riding on — otherwise a card with no eligible squeezer
   // (nobody bet that side, or nobody bet at all) would hang the round
@@ -169,6 +163,7 @@ function registerSocketServer(io) {
           if (!t) return;
           if (table.roundLimitReached(t)) {
             t.status = 'finished';
+            table.recordTournamentAwards(t);
             broadcastState();
             return;
           }
@@ -252,7 +247,8 @@ function registerSocketServer(io) {
         ack?.({ ok: false, error: '입장 코드가 올바르지 않습니다' });
         return;
       }
-      const player = table.addPlayer(t, payload.nickname);
+      if (!String(payload.employeeId || '').trim()) { ack?.({ ok: false, error: '사번을 입력해 주세요' }); return; }
+      const player = table.addPlayer(t, payload.nickname, payload.employeeId);
       player.connected = true;
       player.socketId = socket.id;
       socketPlayer.set(socket.id, player.id);
@@ -290,7 +286,6 @@ function registerSocketServer(io) {
         table.confirmBets(t, playerId);
         ack?.({ ok: true });
         broadcastState();
-        maybeAdvanceEarly();
       } catch (e) {
         ack?.({ ok: false, error: e.message });
       }
@@ -304,6 +299,24 @@ function registerSocketServer(io) {
         ack?.({ ok: true });
         broadcastState();
       } catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('raffle:enter', (payload, ack) => {
+      const playerId = socketPlayer.get(socket.id);
+      try { const number = table.enterRaffle(t, playerId); ack?.({ ok: true, number }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:addPrize', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.addRafflePrize(t, payload?.name); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:drawRaffle', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { const winner = table.drawRaffleWinner(t); ack?.({ ok: true, winner }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
     socket.on('squeezeProgress', (payload) => {
