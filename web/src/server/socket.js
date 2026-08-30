@@ -220,6 +220,11 @@ function registerSocketServer(io) {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try {
         table.startMiniGame(t, payload?.type);
+        if (payload?.type === 'group-rps') {
+          ack?.({ ok: true });
+          broadcastState();
+          return;
+        }
         t.timers.miniGame = setTimeout(() => {
           if (!t || t.miniGame.status !== 'collecting') return;
           delete t.timers.miniGame;
@@ -301,6 +306,19 @@ function registerSocketServer(io) {
       } catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
+    socket.on('rps:submit', (payload, ack) => {
+      const playerId = socketPlayer.get(socket.id);
+      if (!t || !playerId) { ack?.({ ok: false, error: '참가자 정보가 없습니다' }); return; }
+      try { table.submitGroupRps(t, playerId, payload?.choice); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:rpsNextRound', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.nextGroupRpsRound(t); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
     socket.on('raffle:enter', (payload, ack) => {
       const playerId = socketPlayer.get(socket.id);
       try { const number = table.enterRaffle(t, playerId); ack?.({ ok: true, number }); broadcastState(); }
@@ -310,6 +328,12 @@ function registerSocketServer(io) {
     socket.on('admin:addPrize', (payload, ack) => {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try { table.addRafflePrize(t, payload?.name); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:resetRaffle', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.resetRaffle(t); ack?.({ ok: true }); broadcastState(); }
       catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 

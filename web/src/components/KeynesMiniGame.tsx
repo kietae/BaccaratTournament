@@ -32,7 +32,7 @@ export default function KeynesMiniGame({ state, admin = false, onSubmit, onRevea
     return (
       <section className={`w-full rounded-3xl border border-violet-400/30 bg-[radial-gradient(circle_at_top,#39205e,#100b1b_68%)] text-center ${admin ? 'p-5 lg:p-8' : 'h-full min-h-0 p-2.5 flex flex-col'}`}>
         <p className="text-xs font-bold tracking-[0.28em] text-violet-300">MINI GAME</p>
-        <h2 className={`${admin ? 'mt-2 text-3xl lg:text-5xl' : 'mt-0.5 text-xl'} font-black text-white`}>{isLowestUnique ? 'Lowest Unique Number' : 'Beauty Contest'}</h2>
+        <h2 className={`${admin ? 'mt-2 text-3xl lg:text-5xl' : 'mt-0.5 text-xl'} font-black text-white`}>{isLowestUnique ? '눈치 게임' : '2/3 맞추기'}</h2>
         <p className="text-xs font-bold text-violet-200">{isLowestUnique ? '가장 낮은 유일한 숫자 결과' : '평균의 2/3 결과'}</p>
         {!isLowestUnique && <div className={`${admin ? 'mt-5' : 'mt-1'} flex justify-center gap-2 text-xs`}><span className="rounded-full bg-black/30 px-3 py-1 text-zinc-300">평균 <b className="text-white">{game.average?.toFixed(2)}</b></span><span className="rounded-full bg-amber-400/15 px-3 py-1 text-amber-200">목표값 <b>{game.target?.toFixed(2)}</b></span></div>}
         {game.results.length === 0 && <p className="mt-6 text-zinc-300">제출한 참가자가 없습니다.</p>}
@@ -47,7 +47,7 @@ export default function KeynesMiniGame({ state, admin = false, onSubmit, onRevea
   return (
     <section className={`w-full rounded-3xl border border-violet-400/30 bg-[radial-gradient(circle_at_top,#39205e,#100b1b_68%)] text-center ${admin ? 'p-5 lg:p-8' : 'h-full p-3'}`}>
       <p className="text-xs font-bold tracking-[0.28em] text-violet-300">MINI GAME</p>
-      <h2 className={`${admin ? 'mt-2 text-3xl lg:text-5xl' : 'mt-0.5 text-2xl'} font-black text-white`}>{isLowestUnique ? 'Lowest Unique Number' : 'Beauty Contest'}</h2>
+      <h2 className={`${admin ? 'mt-2 text-3xl lg:text-5xl' : 'mt-0.5 text-2xl'} font-black text-white`}>{isLowestUnique ? '눈치 게임' : '2/3 맞추기'}</h2>
       <p className={`mx-auto max-w-xl text-sm text-zinc-300 ${admin ? 'mt-3' : 'mt-1'}`}>{isLowestUnique ? '1~50 사이 숫자 하나를 적어라. 아무도 겹치지 않은 숫자 중 가장 낮은 숫자를 낸 사람이 우승.' : '0~100 사이 숫자 하나를 적어라. 전체 평균의 2/3에 가장 가까운 사람이 우승.'}</p>
       {!isLowestUnique && <p className={`mx-auto max-w-xl text-xs text-zinc-400 ${admin ? 'mt-2' : 'mt-0.5'}`}>동점이면 최종 숫자를 먼저 제출한 사람이 우선합니다. 10명 이상 참여하면 더 재미있습니다.</p>}
       <div className={`${admin ? 'mt-5' : 'mt-2'} flex flex-wrap items-center justify-center gap-3`}><span className="rounded-full bg-black/30 px-3 py-1 text-sm text-violet-200">전체 {game.totalPlayers}명 중 <b className="text-white">{game.submittedCount}명 제출</b></span>{admin && <span className={`rounded-full px-4 py-2 font-mono font-black ${remaining <= 10 ? 'bg-red-500/20 text-red-300 animate-pulse' : 'bg-amber-400/15 text-amber-200'}`}>마감까지 {remaining}초</span>}</div>
@@ -69,9 +69,10 @@ export function MiniGameRules() {
   return (
     <section className="w-full rounded-2xl border border-violet-400/20 bg-violet-400/5 p-4 text-left">
       <p className="text-xs font-bold tracking-[0.2em] text-violet-300">MINI GAME RULES</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div><h3 className="font-bold text-white">Beauty Contest</h3><p className="mt-1 text-sm leading-6 text-zinc-300">0~100 중 숫자 하나를 제출합니다. 모든 참가자가 낸 숫자의 평균에 2/3를 곱한 값과 가장 가까운 사람이 우승합니다. 동점이면 먼저 제출한 사람이 앞섭니다.</p></div>
-        <div><h3 className="font-bold text-white">Lowest Unique Number</h3><p className="mt-1 text-sm leading-6 text-zinc-300">1~50 중 숫자 하나를 제출합니다. 다른 사람과 겹치지 않은 숫자 가운데 가장 낮은 숫자를 낸 사람이 우승합니다.</p></div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div><h3 className="font-bold text-white">2/3 맞추기</h3><p className="mt-1 text-sm leading-6 text-zinc-300">0~100 중 숫자 하나를 제출합니다. 모든 참가자가 낸 숫자의 평균에 2/3를 곱한 값과 가장 가까운 사람이 우승합니다. 동점이면 먼저 제출한 사람이 앞섭니다.</p></div>
+        <div><h3 className="font-bold text-white">눈치 게임</h3><p className="mt-1 text-sm leading-6 text-zinc-300">1~50 중 숫자 하나를 제출합니다. 다른 사람과 겹치지 않은 숫자 가운데 가장 낮은 숫자를 낸 사람이 우승합니다.</p></div>
+        <div><h3 className="font-bold text-white">단체 가위바위보</h3><p className="mt-1 text-sm leading-6 text-zinc-300">모두 가위·바위·보를 선택하면 컴퓨터의 손이 공개됩니다. 컴퓨터를 이긴 사람만 다음 라운드로 진출하며, 마지막 한 사람이 우승합니다.</p></div>
       </div>
     </section>
   );

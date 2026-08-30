@@ -12,6 +12,7 @@ import RoundResultCallout from '@/components/RoundResultCallout';
 import OpeningRoadGame from '@/components/OpeningRoadGame';
 import KeynesMiniGame, { MiniGameRules } from '@/components/KeynesMiniGame';
 import PrizeDraw from '@/components/PrizeDraw';
+import GroupRpsGame from '@/components/GroupRpsGame';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
   'road-seeding': '초기 게임 진행',
@@ -152,7 +153,7 @@ export default function AdminPage() {
     if (!res.ok) setError(res.error || '시작 실패');
   }
 
-  async function startMiniGame(type: 'beauty-contest' | 'lowest-unique') {
+  async function startMiniGame(type: 'beauty-contest' | 'lowest-unique' | 'group-rps') {
     if (!adminToken) return;
     const res = await ack<{ ok: boolean; error?: string }>('admin:startMiniGame', { adminToken, type });
     if (!res.ok) setError(res.error || '미니게임을 시작하지 못했습니다');
@@ -212,7 +213,7 @@ export default function AdminPage() {
       <div><p className="text-xs tracking-[0.24em] text-amber-500 uppercase">Live Tournament</p><h1 className="text-xl lg:text-3xl font-bold text-amber-100">{state.tournamentName}</h1></div>
       <div className="flex items-center gap-3"><div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
     </header>
-    {state.status === 'lobby' ? <Lobby state={state} qr={qr} adminToken={adminToken} onStart={startTournament} onStartMiniGame={startMiniGame} onRevealMiniGame={revealMiniGame} error={error} /> : state.status === 'finished' ? <FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} error={error} /> : <LiveDashboard state={state} />}
+    {state.status !== 'active' && (state.status === 'lobby' || state.miniGame.status !== 'idle' || state.rps.status !== 'idle') ? <Lobby state={state} qr={qr} adminToken={adminToken} onStart={startTournament} onStartMiniGame={startMiniGame} onRevealMiniGame={revealMiniGame} error={error} /> : state.status === 'finished' ? <div className="flex flex-col gap-5"><FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} error={error} /><GameSelectionActions state={state} onStart={startTournament} onStartMiniGame={startMiniGame} /><PrizeDraw state={state} adminToken={adminToken} /></div> : <LiveDashboard state={state} />}
   </main>;
 }
 
@@ -235,8 +236,9 @@ function FormattedNumberInput({ value, onChange, min, max }: { value: number; on
   );
 }
 
-function Lobby({ state, qr, adminToken, onStart, onStartMiniGame, onRevealMiniGame, error }: { state: TableState; qr: string | null; adminToken: string; onStart: () => void; onStartMiniGame: (type: 'beauty-contest' | 'lowest-unique') => void; onRevealMiniGame: () => void; error: string | null }) {
-  if (state.miniGame.status !== 'idle') return <div className="flex flex-col gap-5"><KeynesMiniGame state={state} admin onReveal={onRevealMiniGame} />{state.miniGame.status === 'revealed' && <div className="flex flex-wrap justify-center gap-3"><button onClick={() => onStartMiniGame('beauty-contest')} className="rounded-xl bg-violet-300 px-6 py-3 font-black text-violet-950">뷰티 콘테스트</button><button onClick={() => onStartMiniGame('lowest-unique')} className="rounded-xl bg-cyan-300 px-6 py-3 font-black text-cyan-950">최저 유일 숫자</button><button data-testid="start-tournament" onClick={onStart} disabled={state.playerCount === 0} className="rounded-xl bg-amber-500 px-8 py-3 font-black text-zinc-950 disabled:opacity-40">바카라 토너먼트</button></div>}<PrizeDraw state={state} adminToken={adminToken} />{error && <p className="text-center text-sm text-red-400">{error}</p>}</div>;
+function Lobby({ state, qr, adminToken, onStart, onStartMiniGame, onRevealMiniGame, error }: { state: TableState; qr: string | null; adminToken: string; onStart: () => void; onStartMiniGame: (type: 'beauty-contest' | 'lowest-unique' | 'group-rps') => void; onRevealMiniGame: () => void; error: string | null }) {
+  if (state.rps.status !== 'idle') return <div className="flex flex-col gap-5"><GroupRpsGame state={state} adminToken={adminToken} />{state.rps.status === 'finished' && <><GameSelectionActions state={state} onStart={onStart} onStartMiniGame={onStartMiniGame} /><PrizeDraw state={state} adminToken={adminToken} /></>} {error && <p className="text-center text-sm text-red-400">{error}</p>}</div>;
+  if (state.miniGame.status !== 'idle') return <div className="flex flex-col gap-5"><KeynesMiniGame state={state} admin onReveal={onRevealMiniGame} />{state.miniGame.status === 'revealed' && <GameSelectionActions state={state} onStart={onStart} onStartMiniGame={onStartMiniGame} />}<PrizeDraw state={state} adminToken={adminToken} />{error && <p className="text-center text-sm text-red-400">{error}</p>}</div>;
   return <div className="grid lg:grid-cols-[minmax(320px,0.8fr)_1.2fr] gap-6 items-stretch">
     <section className="rounded-3xl border border-amber-500/20 bg-gradient-to-br from-zinc-900 to-black p-7 flex flex-col items-center justify-center text-center">
       <p className="text-zinc-400 mb-3">휴대전화 카메라로 QR을 스캔하세요</p>
@@ -245,8 +247,7 @@ function Lobby({ state, qr, adminToken, onStart, onStartMiniGame, onRevealMiniGa
         <img src={qr} alt="입장 QR 코드" className="rounded-2xl bg-white p-3 w-[260px] h-[260px]" />
       )}
       <div className="mt-5 text-sm text-zinc-500">입장 코드</div><div data-testid="join-code" className="font-mono text-4xl lg:text-5xl font-black text-amber-300 tracking-[0.2em] pl-[0.2em]">{state.joinCode}</div>
-      <p className="mt-7 text-xs font-bold tracking-[.25em] text-amber-400">행사 선택</p><button data-testid="start-tournament" onClick={onStart} disabled={state.playerCount === 0} className="mt-3 w-full max-w-sm rounded-xl bg-amber-500 text-zinc-950 font-black py-4 text-lg disabled:opacity-40">바카라 토너먼트</button>
-      <div className="mt-3 flex w-full max-w-sm gap-2"><button data-testid="start-beauty-contest" onClick={() => onStartMiniGame('beauty-contest')} disabled={state.playerCount === 0} className="flex-1 rounded-xl bg-violet-300 px-3 py-3 text-sm font-black text-violet-950 disabled:opacity-40">Beauty Contest</button><button data-testid="start-lowest-unique" onClick={() => onStartMiniGame('lowest-unique')} disabled={state.playerCount === 0} className="flex-1 rounded-xl bg-cyan-300 px-3 py-3 text-sm font-black text-cyan-950 disabled:opacity-40">Lowest Unique</button></div>
+      <GameSelectionActions state={state} onStart={onStart} onStartMiniGame={onStartMiniGame} />
       <div className="mt-5 w-full max-w-xl"><MiniGameRules /></div>
       {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
     </section><div className="flex flex-col gap-5"><Leaderboard state={state} title={`참가자 ${state.playerCount}명`} /><PrizeDraw state={state} adminToken={adminToken} /></div>
@@ -263,6 +264,10 @@ function LiveDashboard({ state }: { state: TableState }) {
     </div>
     <TableStage state={state} activeCard={activeCard} />
   </div>;
+}
+
+function GameSelectionActions({ state, onStart, onStartMiniGame }: { state: TableState; onStart: () => void; onStartMiniGame: (type: 'beauty-contest' | 'lowest-unique' | 'group-rps') => void }) {
+  return <section className="mx-auto w-full max-w-2xl rounded-2xl border border-amber-400/20 bg-black/25 p-4 text-center"><p className="text-xs font-bold tracking-[.25em] text-amber-400">{state.miniGame.status === 'revealed' || state.rps.status === 'finished' || state.raffle.status === 'finished' ? '게임 종료 · 다음 게임 선택' : '행사 선택'}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"><button data-testid="start-tournament" onClick={onStart} disabled={state.playerCount === 0} className="rounded-xl bg-amber-400 px-2 py-3 text-sm font-black text-zinc-950 disabled:opacity-40">바카라</button><button data-testid="start-beauty-contest" onClick={() => onStartMiniGame('beauty-contest')} disabled={state.playerCount === 0} className="rounded-xl bg-violet-300 px-2 py-3 text-sm font-black text-violet-950 disabled:opacity-40">2/3 맞추기</button><button data-testid="start-lowest-unique" onClick={() => onStartMiniGame('lowest-unique')} disabled={state.playerCount === 0} className="rounded-xl bg-cyan-300 px-2 py-3 text-sm font-black text-cyan-950 disabled:opacity-40">눈치 게임</button><button type="button" onClick={() => onStartMiniGame('group-rps')} disabled={state.playerCount < 2} className="rounded-xl bg-fuchsia-300 px-2 py-3 text-sm font-black text-fuchsia-950 disabled:opacity-40">가위바위보</button><button type="button" onClick={() => document.getElementById('prize-draw')?.scrollIntoView({ behavior: 'smooth' })} className="col-span-2 rounded-xl bg-emerald-300 px-2 py-3 text-sm font-black text-emerald-950 sm:col-span-1">경품 추첨</button></div></section>;
 }
 
 function TableStage({ state, activeCard }: { state: TableState; activeCard: CardView | null }) {

@@ -56,13 +56,9 @@ function buildSnapshot(t, forPlayerId) {
     const player = playerId ? t.players.get(playerId) : null;
     return [side, { playerId: playerId || null, nickname: player?.nickname || null }];
   }));
-  const iAmSqueezingNow =
-    forPlayerId != null &&
-    forPlayerId === currentSqueezerId &&
-    (round.phase === 'squeeze' || round.phase === 'extra-card');
-  const adminCanPresentActiveCard =
-    forPlayerId == null &&
-    (round.phase === 'squeeze' || round.phase === 'extra-card');
+  // Everyone watches the same live peel for the active card. Cards that have
+  // not reached the squeeze position remain hidden from every client.
+  const canWatchActiveCard = round.phase === 'squeeze' || round.phase === 'extra-card';
   const miniGame = {
     type: t.miniGame.type,
     status: t.miniGame.status,
@@ -83,6 +79,18 @@ function buildSnapshot(t, forPlayerId) {
     prizes: t.raffle.prizes,
     winners: t.raffle.winners,
     remainingNumbers: raffleEntries.filter((entry) => !t.raffle.winners.some((winner) => winner.playerId === entry.playerId)).map((entry) => entry.number)
+  };
+  const rpsWinner = t.rps.winnerId ? t.players.get(t.rps.winnerId) : null;
+  const rps = {
+    status: t.rps.status,
+    roundNo: t.rps.roundNo,
+    aliveIds: [...t.rps.alive],
+    alivePlayers: [...t.rps.alive].map((playerId) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-' })),
+    submittedCount: t.rps.choices.size,
+    myChoice: forPlayerId ? (t.rps.choices.get(forPlayerId) ?? null) : null,
+    computerChoice: t.rps.status === 'selecting' ? null : t.rps.computerChoice,
+    roundWinnerIds: t.rps.status === 'selecting' ? [] : t.rps.roundWinners,
+    winner: rpsWinner ? { playerId: rpsWinner.id, nickname: rpsWinner.nickname, employeeId: rpsWinner.employeeId } : null
   };
 
   let totalPot = 0;
@@ -116,6 +124,7 @@ function buildSnapshot(t, forPlayerId) {
     seedPreview: t.seedPreview,
     miniGame,
     raffle,
+    rps,
     awards: t.awards,
     roundNo: t.roundNo,
     phase: round.phase,
@@ -130,7 +139,7 @@ function buildSnapshot(t, forPlayerId) {
     isSqueezer: forPlayerId != null && forPlayerId === currentSqueezerId,
     squeezeAuthorities,
     cards: round.cards.map((entry, i) =>
-      cardView(entry, (iAmSqueezingNow || adminCanPresentActiveCard) && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.dealIndex)
+      cardView(entry, canWatchActiveCard && i === round.cardIndex, cardNeedsSqueeze(t, entry), i <= round.dealIndex)
     ),
     result: round.result && round.cards.every((c) => c.revealed)
       ? {

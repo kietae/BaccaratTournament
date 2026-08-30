@@ -66,6 +66,7 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, init
     round: freshRound(0),
     miniGame: { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null },
     raffle: { status: 'idle', entries: new Map(), nextNumber: 1, prizes: [], winners: [] },
+    rps: { status: 'idle', roundNo: 0, alive: new Set(), choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null },
     awards: [],
     timers: {}
   };
@@ -516,7 +517,9 @@ function revealSeedRoadGame(t) {
 
 function startTournament(t) {
   if (t.miniGame.status === 'collecting') throw new GameError('진행 중인 미니게임을 먼저 마감해 주세요');
+  if (t.rps.status === 'selecting' || t.rps.status === 'round-result') throw new GameError('진행 중인 가위바위보를 먼저 마감해 주세요');
   t.miniGame = { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null };
+  t.rps = { status: 'idle', roundNo: 0, alive: new Set(), choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null };
   t.status = 'active';
   if (t.initialRoadGames > 0) {
     t.round.phase = 'road-seeding';
@@ -531,10 +534,61 @@ function roundLimitReached(t) {
 function startMiniGame(t, type = 'beauty-contest', durationSeconds = 60) {
   if (t.status === 'active') throw new GameError('바카라 토너먼트 진행 중에는 미니게임을 시작할 수 없습니다');
   if (t.miniGame.status === 'collecting') throw new GameError('이미 미니게임이 진행 중입니다');
+  if (type === 'group-rps') return startGroupRps(t);
   if (type !== 'beauty-contest' && type !== 'lowest-unique') throw new GameError('지원하지 않는 미니게임입니다');
   const seconds = Math.max(10, Math.min(300, Math.floor(Number(durationSeconds)) || 60));
+  t.rps = { status: 'idle', roundNo: 0, alive: new Set(), choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null };
   t.miniGame = { type, status: 'collecting', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: Date.now() + seconds * 1000 };
   return t.miniGame;
+}
+
+const RPS_CHOICES = ['rock', 'paper', 'scissors'];
+const RPS_BEATS = { rock: 'scissors', paper: 'rock', scissors: 'paper' };
+
+function startGroupRps(t) {
+  if (t.status === 'active') throw new GameError('바카라 진행 중에는 가위바위보를 시작할 수 없습니다');
+  const alive = new Set([...t.players.keys()]);
+  if (alive.size < 2) throw new GameError('가위바위보는 참가자 2명 이상이 필요합니다');
+  t.miniGame = { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null };
+  t.rps = { status: 'selecting', roundNo: 1, alive, choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null };
+  return t.rps;
+}
+
+function submitGroupRps(t, playerId, choice) {
+  if (t.rps.status !== 'selecting') throw new GameError('현재 선택할 수 있는 라운드가 아닙니다');
+  if (!t.rps.alive.has(playerId)) throw new GameError('이번 라운드의 생존자가 아닙니다');
+  if (!RPS_CHOICES.includes(choice)) throw new GameError('가위, 바위, 보 중 하나를 선택해 주세요');
+  t.rps.choices.set(playerId, choice);
+  if ([...t.rps.alive].every((id) => t.rps.choices.has(id))) resolveGroupRpsRound(t);
+  return t.rps;
+}
+
+function resolveGroupRpsRound(t) {
+  const computerChoice = RPS_CHOICES[crypto.randomInt(RPS_CHOICES.length)];
+  const winners = [...t.rps.alive].filter((playerId) => RPS_BEATS[t.rps.choices.get(playerId)] === computerChoice);
+  t.rps.computerChoice = computerChoice;
+  t.rps.roundWinners = winners;
+  t.rps.status = winners.length === 1 ? 'finished' : 'round-result';
+  if (winners.length === 1) {
+    const playerId = winners[0];
+    const player = t.players.get(playerId);
+    t.rps.winnerId = playerId;
+    if (!t.awards.some((award) => award.category === 'mini:group-rps')) {
+      t.awards.push({ category: 'mini:group-rps', title: '단체 가위바위보 우승', playerId, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
+    }
+  }
+}
+
+function nextGroupRpsRound(t) {
+  if (t.rps.status !== 'round-result') throw new GameError('다음 라운드를 시작할 수 없습니다');
+  if (t.rps.roundWinners.length > 1) t.rps.alive = new Set(t.rps.roundWinners);
+  // 승자가 한 명도 없으면 전원 탈락 대신 현재 생존자끼리 재대결합니다.
+  t.rps.roundNo += 1;
+  t.rps.status = 'selecting';
+  t.rps.choices = new Map();
+  t.rps.computerChoice = null;
+  t.rps.roundWinners = [];
+  return t.rps;
 }
 
 function submitMiniGameNumber(t, playerId, value) {
@@ -580,7 +634,7 @@ function revealMiniGame(t) {
   t.miniGame = { ...t.miniGame, status: 'revealed', average, target, results, endsAt: null };
   const winner = results.find((entry) => entry.rank === 1);
   if (winner && !t.awards.some((award) => award.category === `mini:${t.miniGame.type}`)) {
-    t.awards.push({ category: `mini:${t.miniGame.type}`, title: t.miniGame.type === 'lowest-unique' ? '최저 유일 숫자 우승' : '뷰티 콘테스트 우승', playerId: winner.playerId, nickname: winner.nickname, employeeId: t.players.get(winner.playerId)?.employeeId || '', at: Date.now() });
+    t.awards.push({ category: `mini:${t.miniGame.type}`, title: t.miniGame.type === 'lowest-unique' ? '눈치 게임 우승' : '2/3 맞추기 우승', playerId: winner.playerId, nickname: winner.nickname, employeeId: t.players.get(winner.playerId)?.employeeId || '', at: Date.now() });
   }
   return t.miniGame;
 }
@@ -599,6 +653,12 @@ function addRafflePrize(t, name) {
   if (!prizeName) throw new GameError('경품명을 입력해 주세요');
   t.raffle.prizes.push({ id: id(), name: prizeName });
   t.raffle.status = 'collecting';
+}
+
+function resetRaffle(t) {
+  if (t.status === 'active') throw new GameError('바카라 진행 중에는 경품 추첨을 준비할 수 없습니다');
+  t.raffle = { status: 'idle', entries: new Map(), nextNumber: 1, prizes: [], winners: [] };
+  return t.raffle;
 }
 
 function drawRaffleWinner(t) {
@@ -632,5 +692,5 @@ module.exports = {
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
-  startMiniGame, submitMiniGameNumber, revealMiniGame, enterRaffle, addRafflePrize, drawRaffleWinner, recordTournamentAwards, currentBetTotal
+  startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal
 };

@@ -13,6 +13,7 @@ import RoundResultCallout from '@/components/RoundResultCallout';
 import OpeningRoadGame from '@/components/OpeningRoadGame';
 import KeynesMiniGame, { MiniGameRules } from '@/components/KeynesMiniGame';
 import PrizeDraw from '@/components/PrizeDraw';
+import GroupRpsGame from '@/components/GroupRpsGame';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -145,6 +146,12 @@ export default function PlayPage() {
     const response = await ack<{ ok: boolean; error?: string }>('submitMiniGame', { value });
     return response.ok ? null : (response.error || '제출하지 못했습니다');
   }
+
+  if (state.rps.status !== 'idle') return (
+    <main className="min-h-[100svh] flex items-center justify-center p-2 lg:p-5">
+      <div className="w-full max-w-4xl"><GroupRpsGame state={state} /></div>
+    </main>
+  );
 
   if (state.miniGame.status !== 'idle') return (
     <main className="h-[100svh] overflow-hidden flex flex-col gap-1.5 p-2 max-w-3xl mx-auto w-full">

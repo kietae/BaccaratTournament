@@ -136,6 +136,17 @@ export interface TableState {
     winners: { prizeId: string; prizeName: string; playerId: string; number: number; nickname: string; employeeId: string; at: number }[];
     remainingNumbers: number[];
   };
+  rps: {
+    status: 'idle' | 'selecting' | 'round-result' | 'finished';
+    roundNo: number;
+    aliveIds: string[];
+    alivePlayers: { playerId: string; nickname: string }[];
+    submittedCount: number;
+    myChoice: 'rock' | 'paper' | 'scissors' | null;
+    computerChoice: 'rock' | 'paper' | 'scissors' | null;
+    roundWinnerIds: string[];
+    winner: { playerId: string; nickname: string; employeeId: string } | null;
+  };
   awards: { category: string; title: string; playerId: string; nickname: string; employeeId: string; at: number }[];
   roundNo: number;
   phase: Phase;

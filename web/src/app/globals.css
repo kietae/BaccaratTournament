@@ -198,3 +198,11 @@ body {
 @keyframes raffle-spin { to { transform: rotate(360deg); } }
 .raffle-wheel-spinning { animation: raffle-spin .55s linear infinite; }
 .raffle-wheel-stopping { animation: raffle-spin 2.4s cubic-bezier(.1,.65,.2,1) forwards; }
+@keyframes rps-think { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-22px) rotate(8deg); } }
+@keyframes rps-reveal { 0% { opacity: 0; transform: scale(.2) rotate(-35deg); } 70% { transform: scale(1.25) rotate(8deg); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes rps-winner { 0%,100% { transform: scale(1) rotate(-3deg); filter: drop-shadow(0 0 10px #fbbf24); } 50% { transform: scale(1.16) rotate(3deg); filter: drop-shadow(0 0 32px #fbbf24); } }
+.rps-thinking { animation: rps-think .7s ease-in-out infinite; }
+.rps-reveal { animation: rps-reveal .75s cubic-bezier(.2,.9,.2,1) both; }
+.rps-winner { animation: rps-winner 1.4s ease-in-out infinite; }
+.rps-survivor { animation: rps-reveal .55s cubic-bezier(.2,.9,.2,1) both; }
+.rps-rays { background: repeating-conic-gradient(from 0deg, rgba(255,255,255,.28) 0deg 8deg, transparent 8deg 20deg); }
