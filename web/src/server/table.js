@@ -34,7 +34,7 @@ function positiveNumber(value, fallback) {
   return n > 0 ? n : fallback;
 }
 
-function createTournament({ name, initialChips, roundLimit, bettingSeconds, initialRoadGames, betLimits, payoutMode } = {}) {
+function createTournament({ name, initialChips, roundLimit, bettingSeconds, miniGameSeconds, initialRoadGames, betLimits, payoutMode } = {}) {
   const limits = {
     mainMin: positiveNumber(betLimits?.mainMin, DEFAULT_BET_LIMITS.mainMin),
     mainMax: positiveNumber(betLimits?.mainMax, DEFAULT_BET_LIMITS.mainMax),
@@ -49,6 +49,7 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, init
     initialChips: initialChips > 0 ? initialChips : DEFAULT_INITIAL_CHIPS,
     roundLimit: roundLimit > 0 ? roundLimit : null,
     bettingSeconds: positiveNumber(bettingSeconds, BETTING_SECONDS),
+    miniGameSeconds: Math.max(10, Math.min(300, positiveNumber(miniGameSeconds, 60))),
     initialRoadGames: Math.max(0, Math.min(50, Math.floor(Number(initialRoadGames ?? 3)) || 0)),
     seedProgress: 0,
     seedPreview: null,
@@ -531,7 +532,7 @@ function roundLimitReached(t) {
   return t.roundLimit != null && t.roundNo >= t.roundLimit;
 }
 
-function startMiniGame(t, type = 'beauty-contest', durationSeconds = 60) {
+function startMiniGame(t, type = 'beauty-contest', durationSeconds = t.miniGameSeconds) {
   if (t.status === 'active') throw new GameError('바카라 토너먼트 진행 중에는 미니게임을 시작할 수 없습니다');
   if (t.miniGame.status === 'collecting') throw new GameError('이미 미니게임이 진행 중입니다');
   if (type === 'group-rps') return startGroupRps(t);

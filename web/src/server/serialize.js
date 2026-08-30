@@ -117,6 +117,7 @@ function buildSnapshot(t, forPlayerId) {
     initialChips: t.initialChips,
     roundLimit: t.roundLimit,
     bettingSeconds: t.bettingSeconds,
+    miniGameSeconds: t.miniGameSeconds,
     betLimits: t.betLimits,
     payoutMode: t.payoutMode,
     initialRoadGames: t.initialRoadGames,

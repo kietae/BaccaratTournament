@@ -104,6 +104,7 @@ export interface TableState {
   initialChips: number;
   roundLimit: number | null;
   bettingSeconds: number;
+  miniGameSeconds: number;
   betLimits: { mainMin: number; mainMax: number; sideMin: number; sideMax: number };
   payoutMode: PayoutMode;
   initialRoadGames: number;

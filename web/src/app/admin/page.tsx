@@ -25,11 +25,15 @@ export default function AdminPage() {
   const [state, setState] = useState<TableState | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [setupView, setSetupView] = useState<'menu' | 'options'>('menu');
   const [qr, setQr] = useState<string | null>(null);
   const [name, setName] = useState('바카라 토너먼트');
   const [initialChips, setInitialChips] = useState(30_000_000);
   const [roundLimit, setRoundLimit] = useState(10);
   const [bettingSeconds, setBettingSeconds] = useState(25);
+  const [miniGameSeconds, setMiniGameSeconds] = useState(60);
   const [initialRoadGames, setInitialRoadGames] = useState(3);
   const [mainMin, setMainMin] = useState(100_000);
   const [mainMax, setMainMax] = useState(10_000_000);
@@ -61,7 +65,7 @@ export default function AdminPage() {
       const tok = tokenRef.current;
       if (!tok) { setAttaching(false); return; }
       ack<{ ok: boolean }>('admin:attach', { adminToken: tok }).then((res) => {
-        if (res.ok) setAdminToken(tok);
+        if (res.ok) { setAdminToken(tok); setAuthenticated(true); }
         else { localStorage.removeItem(ADMIN_TOKEN_KEY); tokenRef.current = null; }
         setAttaching(false);
       });
@@ -137,7 +141,7 @@ export default function AdminPage() {
 
   async function createTournament() {
     setError(null);
-    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, initialRoadGames, payoutMode, betLimits: { mainMin, mainMax, sideMin, sideMax } });
+    const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, miniGameSeconds, initialRoadGames, payoutMode, betLimits: { mainMin, mainMax, sideMin, sideMax } });
     if (!res.ok || !res.adminToken) { setError(res.error || '생성 실패'); return; }
     localStorage.setItem(ADMIN_TOKEN_KEY, res.adminToken);
     tokenRef.current = res.adminToken;
@@ -151,6 +155,15 @@ export default function AdminPage() {
     if (audio?.state === 'suspended') await audio.resume().catch(() => undefined);
     const res = await ack<{ ok: boolean; error?: string }>('admin:start', { adminToken });
     if (!res.ok) setError(res.error || '시작 실패');
+  }
+
+  async function loginAdmin(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const res = await ack<{ ok: boolean; error?: string }>('admin:login', { password });
+    if (!res.ok) { setError(res.error || '관리자 인증에 실패했습니다'); return; }
+    setAuthenticated(true);
+    setPassword('');
   }
 
   async function startMiniGame(type: 'beauty-contest' | 'lowest-unique' | 'group-rps') {
@@ -180,14 +193,28 @@ export default function AdminPage() {
   }
 
   if (attaching) return <main className="flex-1 flex items-center justify-center text-zinc-500">불러오는 중...</main>;
+  if (!authenticated) return (
+    <main className="flex flex-1 items-center justify-center p-6">
+      <form onSubmit={loginAdmin} className="w-full max-w-sm rounded-3xl border border-amber-400/20 bg-zinc-900/80 p-7 text-center shadow-2xl">
+        <p className="text-xs font-bold tracking-[.3em] text-amber-400">2026 CAGE WORKSHOP</p>
+        <h1 className="mt-3 text-3xl font-black text-white">관리자 로그인</h1>
+        <p className="mt-2 text-sm text-zinc-400">관리자 비밀번호를 입력해 주세요.</p>
+        <input autoFocus type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="관리자 비밀번호" className="admin-input mt-6 w-full text-center" />
+        {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+        <button disabled={!password} className="mt-4 w-full rounded-xl bg-amber-400 py-3 font-black text-zinc-950 disabled:opacity-40">관리자 화면 입장</button>
+      </form>
+    </main>
+  );
   if (!adminToken || !state) return (
     <main className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-      <div className="text-center"><p className="text-xs tracking-[0.28em] text-amber-500 uppercase">Workshop Event</p><h1 className="mt-2 text-2xl font-bold text-amber-200">바카라 토너먼트 생성</h1></div>
+      {setupView === 'menu' ? <div className="w-full max-w-2xl text-center"><p className="text-xs font-bold tracking-[.3em] text-amber-400">ADMIN CONSOLE</p><h1 className="mt-3 text-4xl font-black text-white">행사 관리</h1><p className="mt-2 text-zinc-400">게임 옵션을 확인한 뒤 참가 접수를 시작하세요.</p><div className="mt-8 grid gap-4 sm:grid-cols-2"><button onClick={() => setSetupView('options')} className="rounded-3xl border border-violet-400/30 bg-violet-400/10 p-8 text-left transition hover:bg-violet-400/20"><span className="text-4xl">⚙️</span><h2 className="mt-4 text-2xl font-black text-white">옵션 변경</h2><p className="mt-2 text-sm text-zinc-400">바카라 칩, 라운드, 베팅 시간과 한도를 설정합니다.</p></button><button onClick={createTournament} className="rounded-3xl border border-amber-400/30 bg-amber-400/10 p-8 text-left transition hover:bg-amber-400/20"><span className="text-4xl">🎪</span><h2 className="mt-4 text-2xl font-black text-white">참가 접수 시작</h2><p className="mt-2 text-sm text-zinc-400">입장 코드와 QR을 만들고 행사 게임을 선택합니다.</p></button></div>{error && <p className="mt-4 text-sm text-red-300">{error}</p>}</div> : <>
+      <div className="text-center"><p className="text-xs tracking-[0.28em] text-amber-500 uppercase">Game Settings</p><h1 className="mt-2 text-2xl font-bold text-amber-200">게임 옵션 변경</h1></div>
       <div className="flex flex-col gap-3 w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
         <Field label="이름"><input value={name} onChange={(e) => setName(e.target.value)} className="admin-input" /></Field>
         <Field label="초기 지급 칩"><FormattedNumberInput value={initialChips} onChange={setInitialChips} /></Field>
         <Field label="라운드 수 제한 (0 = 무제한)"><FormattedNumberInput value={roundLimit} onChange={setRoundLimit} min={0} /></Field>
         <Field label="베팅 대기 시간(초)"><FormattedNumberInput value={bettingSeconds} onChange={setBettingSeconds} min={5} /></Field>
+        <Field label="2/3 맞추기 · 눈치 게임 제한 시간(초)"><FormattedNumberInput value={miniGameSeconds} onChange={setMiniGameSeconds} min={10} max={300} /></Field>
         <Field label="시작 전 자동 게임 수"><FormattedNumberInput value={initialRoadGames} onChange={setInitialRoadGames} min={0} max={50} /></Field>
         <Field label="뱅커 정산 방식">
           <select value={payoutMode} onChange={(event) => setPayoutMode(event.target.value as PayoutMode)} className="admin-input">
@@ -202,8 +229,9 @@ export default function AdminPage() {
           <Field label="옵션벳 최대"><FormattedNumberInput value={sideMax} onChange={setSideMax} min={1} /></Field>
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
-        <button data-testid="create-tournament" onClick={createTournament} className="rounded-xl bg-amber-500 text-zinc-950 font-bold py-3 active:scale-[0.98] transition">생성</button>
+        <button type="button" onClick={() => setSetupView('menu')} className="rounded-xl bg-amber-500 text-zinc-950 font-bold py-3 active:scale-[0.98] transition">옵션 저장</button>
       </div>
+      </>}
     </main>
   );
 

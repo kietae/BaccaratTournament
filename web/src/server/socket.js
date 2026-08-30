@@ -176,7 +176,23 @@ function registerSocketServer(io) {
   }
 
   io.on('connection', (socket) => {
+    let adminAuthenticated = false;
+
+    socket.on('admin:login', (payload, ack) => {
+      const expectedPassword = process.env.ADMIN_PASSWORD || 'cage123';
+      if (String(payload?.password || '') !== expectedPassword) {
+        ack?.({ ok: false, error: '관리자 비밀번호가 올바르지 않습니다' });
+        return;
+      }
+      adminAuthenticated = true;
+      ack?.({ ok: true });
+    });
+
     socket.on('admin:create', (payload, ack) => {
+      if (!adminAuthenticated) {
+        ack?.({ ok: false, error: '관리자 인증이 필요합니다' });
+        return;
+      }
       if (t && t.status === 'active' && !adminSockets.has(socket.id)) {
         ack?.({ ok: false, error: '진행 중인 토너먼트는 기존 관리자만 변경할 수 있습니다' });
         return;
@@ -186,6 +202,7 @@ function registerSocketServer(io) {
       adminSockets.clear();
       t = table.createTournament(payload || {});
       adminSockets.add(socket.id);
+      adminAuthenticated = true;
       ack?.({ ok: true, adminToken: t.adminToken, joinCode: t.joinCode });
       broadcastState();
     });
@@ -196,6 +213,7 @@ function registerSocketServer(io) {
         return;
       }
       adminSockets.add(socket.id);
+      adminAuthenticated = true;
       ack?.({ ok: true });
       socket.emit('state', buildSnapshot(t, null));
     });
