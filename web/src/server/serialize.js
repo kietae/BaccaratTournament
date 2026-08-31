@@ -86,7 +86,12 @@ function buildSnapshot(t, forPlayerId) {
     status: t.rps.status,
     roundNo: t.rps.roundNo,
     aliveIds: [...t.rps.alive],
-    alivePlayers: [...t.rps.alive].map((playerId) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-' })),
+    alivePlayers: [...t.rps.alive].map((playerId) => ({
+      playerId,
+      nickname: t.players.get(playerId)?.nickname || '-',
+      connected: Boolean(t.players.get(playerId)?.connected),
+      hasSubmitted: t.rps.choices.has(playerId)
+    })),
     submittedCount: t.rps.choices.size,
     myChoice: forPlayerId ? (t.rps.choices.get(forPlayerId) ?? null) : null,
     computerChoice: t.rps.status === 'selecting' ? null : t.rps.computerChoice,

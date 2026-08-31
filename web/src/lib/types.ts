@@ -141,7 +141,7 @@ export interface TableState {
     status: 'idle' | 'selecting' | 'round-result' | 'finished';
     roundNo: number;
     aliveIds: string[];
-    alivePlayers: { playerId: string; nickname: string }[];
+    alivePlayers: { playerId: string; nickname: string; connected: boolean; hasSubmitted: boolean }[];
     submittedCount: number;
     myChoice: 'rock' | 'paper' | 'scissors' | null;
     computerChoice: 'rock' | 'paper' | 'scissors' | null;

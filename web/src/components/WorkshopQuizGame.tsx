@@ -28,7 +28,7 @@ export default function WorkshopQuizGame({ state, adminToken }: { state: TableSt
         <div className="rounded-full bg-white/10 px-4 py-2 font-mono text-sm text-violet-100">{quiz.questionIndex + 1} / {quiz.totalQuestions}</div>
       </header>
 
-      {quiz.status === 'finished' ? <FinalScores state={state} adminToken={adminToken} onCommand={command} /> : <>
+      {quiz.status === 'finished' ? (quiz.type === 'ox' ? <OxFinished adminToken={adminToken} onCommand={command} /> : <FinalScores state={state} adminToken={adminToken} onCommand={command} />) : <>
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,.6fr)]">
           <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/25 p-5 text-center">
             <p className="text-sm font-bold tracking-[.2em] text-amber-300">{question?.category}</p>
@@ -37,18 +37,30 @@ export default function WorkshopQuizGame({ state, adminToken }: { state: TableSt
             {quiz.status === 'revealed' && <div className="mt-5 rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-6 py-4"><p className="text-xs font-bold tracking-[.2em] text-emerald-300">정답</p><p className="mt-1 text-3xl font-black text-white lg:text-5xl">{question?.answer}</p>{question?.explanation && <p className="mt-2 max-w-2xl text-sm text-emerald-100/80">{question.explanation}</p>}</div>}
           </div>
           <div className="flex flex-col gap-3">
-            <ScoreList state={state} awardedTeamId={quiz.awardedTeamId} />
-            {adminToken ? <div className="grid gap-2">
+            {quiz.type === 'ox' ? <OxControls state={state} adminToken={adminToken} onCommand={command} /> : <>
+              <ScoreList state={state} awardedTeamId={quiz.awardedTeamId} />
+              {adminToken ? <div className="grid gap-2">
               <div className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-3"><p className="mb-2 text-center text-xs font-bold tracking-[.15em] text-amber-200">가장 먼저 맞힌 조 선택</p><div className="grid grid-cols-2 gap-2">{state.teams.map((team) => <button key={team.id} onClick={() => command('admin:awardWorkshopPoint', { teamId: team.id })} className={`rounded-xl px-3 py-2 font-black transition ${quiz.awardedTeamId === team.id ? 'bg-amber-300 text-amber-950 ring-2 ring-white' : 'bg-white/10 text-white hover:bg-white/20'}`}>{team.name} +1점</button>)}</div></div>
               {quiz.status === 'question' && <button onClick={() => command('admin:revealWorkshopAnswer')} className="rounded-xl bg-emerald-300 py-3 font-black text-emerald-950">정답 공개</button>}
               {quiz.status === 'revealed' && <button onClick={() => command('admin:nextWorkshopQuestion')} className="rounded-xl bg-amber-300 py-3 font-black text-amber-950">{quiz.questionIndex + 1 >= quiz.totalQuestions ? '최종 결과 보기' : '다음 문제'}</button>}
-            </div> : <div className="rounded-2xl border border-white/10 bg-black/25 p-5 text-center"><div className="text-5xl">🙋</div><p className="mt-3 text-lg font-black text-violet-100">정답을 알면 먼저 손을 드세요!</p><p className="mt-2 text-sm text-zinc-400">{myTeam?.name || '조 편성 대기'} · 진행자가 지목하면 정답을 말해 주세요.</p>{quiz.awardedTeamId && <p className="mt-4 rounded-xl bg-amber-300/10 px-3 py-2 font-bold text-amber-300">이번 문제 득점: {state.teams.find((team) => team.id === quiz.awardedTeamId)?.name}</p>}</div>}
+              </div> : <div className="rounded-2xl border border-white/10 bg-black/25 p-5 text-center"><div className="text-5xl">🙋</div><p className="mt-3 text-lg font-black text-violet-100">정답을 알면 먼저 손을 드세요!</p><p className="mt-2 text-sm text-zinc-400">{myTeam?.name || '조 편성 대기'} · 진행자가 지목하면 정답을 말해 주세요.</p>{quiz.awardedTeamId && <p className="mt-4 rounded-xl bg-amber-300/10 px-3 py-2 font-bold text-amber-300">이번 문제 득점: {state.teams.find((team) => team.id === quiz.awardedTeamId)?.name}</p>}</div>}
+            </>}
           </div>
         </div>
       </>}
       {error && <p className="text-center text-sm text-red-300">{error}</p>}
     </section>
   );
+}
+
+function OxControls({ state, adminToken, onCommand }: { state: TableState; adminToken?: string; onCommand: (event: string, payload?: Record<string, unknown>) => void }) {
+  const quiz = state.workshopQuiz;
+  if (!adminToken) return <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/25 p-5 text-center"><div className="text-6xl">⭕❌</div><p className="mt-4 text-xl font-black text-violet-100">정답이라고 생각하는 구역으로 이동하세요!</p><p className="mt-2 text-sm text-zinc-400">틀린 참가자는 탈락하고, 최후의 1인이 남을 때까지 진행합니다.</p></div>;
+  return <div className="flex flex-1 flex-col justify-center gap-3 rounded-2xl border border-white/10 bg-black/25 p-4"><div className="text-center"><div className="text-5xl">⭕❌</div><p className="mt-3 font-black text-white">현장에서 생존자를 확인해 주세요</p><p className="mt-1 text-sm text-zinc-400">OX는 총 {quiz.totalQuestions}문제를 모두 사용하며, 한 명이 남으면 즉시 종료할 수 있습니다.</p></div>{quiz.status === 'question' && <button onClick={() => onCommand('admin:revealWorkshopAnswer')} className="rounded-xl bg-emerald-300 py-3 font-black text-emerald-950">정답 공개</button>}{quiz.status === 'revealed' && <button onClick={() => onCommand('admin:nextWorkshopQuestion')} className="rounded-xl bg-amber-300 py-3 font-black text-amber-950">{quiz.questionIndex + 1 >= quiz.totalQuestions ? 'OX 퀴즈 종료' : '다음 문제'}</button>}<button onClick={() => { if (window.confirm('최후의 1인이 결정되었나요? OX 퀴즈를 종료합니다.')) onCommand('admin:finishWorkshopQuiz'); }} className="rounded-xl border border-red-300/40 bg-red-400/10 py-3 font-black text-red-200">최후 1인 확정 · 종료</button></div>;
+}
+
+function OxFinished({ adminToken, onCommand }: { adminToken?: string; onCommand: (event: string, payload?: Record<string, unknown>) => void }) {
+  return <div className="flex flex-1 flex-col items-center justify-center py-12 text-center"><div className="text-8xl">🏆</div><p className="mt-5 text-sm font-bold tracking-[.3em] text-amber-300">LAST PERSON STANDING</p><h3 className="mt-2 text-4xl font-black text-white">OX 퀴즈 최후의 1인!</h3><p className="mt-3 text-zinc-400">현장에서 우승자를 확인하고 상품을 전달해 주세요.</p>{adminToken && <button onClick={() => onCommand('admin:resetWorkshopQuiz')} className="mt-7 rounded-xl border border-white/20 px-5 py-3 text-sm font-bold text-zinc-200">행사 선택으로 돌아가기</button>}</div>;
 }
 
 function TeamBoard({ state, adminToken, onCommand, error }: { state: TableState; adminToken?: string; onCommand: (event: string, payload?: Record<string, unknown>) => void; error: string | null }) {

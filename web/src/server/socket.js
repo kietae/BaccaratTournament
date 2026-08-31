@@ -348,6 +348,12 @@ function registerSocketServer(io) {
       catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
+    socket.on('admin:rpsExcludeDisconnected', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { const excludedIds = table.excludeDisconnectedGroupRpsPlayers(t); ack?.({ ok: true, excludedCount: excludedIds.length }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
     socket.on('admin:assignTeams', (payload, ack) => {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try { table.assignTeams(t, payload?.teamCount); ack?.({ ok: true }); broadcastState(); }
@@ -375,6 +381,12 @@ function registerSocketServer(io) {
     socket.on('admin:nextWorkshopQuestion', (payload, ack) => {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try { table.nextWorkshopQuestion(t); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:finishWorkshopQuiz', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.finishWorkshopQuiz(t); ack?.({ ok: true }); broadcastState(); }
       catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 

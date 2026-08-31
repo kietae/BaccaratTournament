@@ -195,9 +195,10 @@ body {
   .betting-zones { grid-template-columns: 1fr 0.78fr 1fr; }
   .bet-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@keyframes raffle-spin { to { transform: rotate(360deg); } }
-.raffle-wheel-spinning { animation: raffle-spin .55s linear infinite; }
-.raffle-wheel-stopping { animation: raffle-spin 2.4s cubic-bezier(.1,.65,.2,1) forwards; }
+.raffle-pointer {
+  background: linear-gradient(90deg, #f59e0b, #fef3c7 45%, #d97706);
+  clip-path: polygon(12% 0, 88% 0, 72% 42%, 50% 100%, 28% 42%);
+}
 @keyframes rps-think { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-22px) rotate(8deg); } }
 @keyframes rps-reveal { 0% { opacity: 0; transform: scale(.2) rotate(-35deg); } 70% { transform: scale(1.25) rotate(8deg); } 100% { opacity: 1; transform: scale(1); } }
 @keyframes rps-winner { 0%,100% { transform: scale(1) rotate(-3deg); filter: drop-shadow(0 0 10px #fbbf24); } 50% { transform: scale(1.16) rotate(3deg); filter: drop-shadow(0 0 32px #fbbf24); } }

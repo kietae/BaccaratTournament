@@ -41,6 +41,37 @@ test('group rock paper scissors shows final choices before revealing the champio
   assert.equal(tournament.rps.status, 'finished');
 });
 
+test('group rock paper scissors can exclude only disconnected players who have not submitted', () => {
+  const tournament = table.createTournament();
+  const submitted = table.addPlayer(tournament, 'Submitted');
+  const waiting = table.addPlayer(tournament, 'Waiting');
+  const absent = table.addPlayer(tournament, 'Absent');
+  submitted.connected = waiting.connected = true;
+  table.startMiniGame(tournament, 'group-rps');
+  table.submitGroupRps(tournament, submitted.id, 'rock');
+  submitted.connected = false;
+
+  const excluded = table.excludeDisconnectedGroupRpsPlayers(tournament);
+  assert.deepEqual(excluded, [absent.id]);
+  assert.equal(tournament.rps.alive.has(submitted.id), true);
+  assert.equal(tournament.rps.alive.has(absent.id), false);
+
+  table.submitGroupRps(tournament, waiting.id, 'paper');
+  assert.equal(tournament.rps.status, 'round-result');
+});
+
+test('the last connected group rock paper scissors player wins after absentees are excluded', () => {
+  const tournament = table.createTournament();
+  const winner = table.addPlayer(tournament, 'Winner');
+  table.addPlayer(tournament, 'Absent');
+  winner.connected = true;
+  table.startMiniGame(tournament, 'group-rps');
+
+  table.excludeDisconnectedGroupRpsPlayers(tournament);
+  assert.equal(tournament.rps.status, 'finished');
+  assert.equal(tournament.rps.winnerId, winner.id);
+});
+
 test('returning to game selection ends active games but keeps participants', () => {
   const tournament = table.createTournament({ initialRoadGames: 0 });
   const player = table.addPlayer(tournament, 'Player');
@@ -98,6 +129,18 @@ test('administrator awards the fastest correct team and can correct the selectio
   assert.equal(playerView.workshopQuiz.totalQuestions, 10);
   assert.ok(playerView.workshopQuiz.question.answer);
   assert.equal(playerView.workshopQuiz.awardedTeamId, tournament.teams[1].id);
+});
+
+test('OX quiz uses every question and can finish early when one player remains', () => {
+  const tournament = table.createTournament({ name: 'OX' });
+  table.addPlayer(tournament, 'player-1');
+  table.addPlayer(tournament, 'player-2');
+  const quiz = table.startWorkshopQuiz(tournament, 'ox');
+
+  assert.equal(quiz.questionOrder.length, 17);
+  assert.equal(new Set(quiz.questionOrder).size, 17);
+  table.finishWorkshopQuiz(tournament);
+  assert.equal(quiz.status, 'finished');
 });
 
 function activeTable() {

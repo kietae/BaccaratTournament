@@ -139,7 +139,8 @@ function startWorkshopQuiz(t, type) {
   if (t.status === 'active') throw new GameError('바카라 진행 중에는 워크숍 퀴즈를 시작할 수 없습니다');
   if (!QUIZZES[type]) throw new GameError('지원하지 않는 워크숍 퀴즈입니다');
   if (!t.teams.length) assignTeams(t);
-  const questionOrder = shuffle(QUIZZES[type].questions.map((_, index) => index)).slice(0, 10);
+  const shuffledQuestions = shuffle(QUIZZES[type].questions.map((_, index) => index));
+  const questionOrder = type === 'ox' ? shuffledQuestions : shuffledQuestions.slice(0, 10);
   t.workshopQuiz = { type, status: 'question', questionIndex: 0, questionOrder, submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
   return t.workshopQuiz;
 }
@@ -180,6 +181,15 @@ function nextWorkshopQuestion(t) {
   quiz.status = 'question';
   quiz.submissions = new Map();
   quiz.awardedTeamId = null;
+  return quiz;
+}
+
+function finishWorkshopQuiz(t) {
+  const quiz = t.workshopQuiz;
+  if (quiz.type !== 'ox' || (quiz.status !== 'question' && quiz.status !== 'revealed')) {
+    throw new GameError('진행 중인 OX 퀴즈가 없습니다');
+  }
+  quiz.status = 'finished';
   return quiz;
 }
 
@@ -656,6 +666,30 @@ function submitGroupRps(t, playerId, choice) {
   return t.rps;
 }
 
+function excludeDisconnectedGroupRpsPlayers(t) {
+  if (t.rps.status !== 'selecting') throw new GameError('현재 미접속자를 제외할 수 없습니다');
+  const excluded = [...t.rps.alive].filter((playerId) => {
+    const player = t.players.get(playerId);
+    return !t.rps.choices.has(playerId) && !player?.connected;
+  });
+  if (!excluded.length) throw new GameError('제외할 미접속 미제출자가 없습니다');
+  if (excluded.length >= t.rps.alive.size) throw new GameError('진행할 접속 참가자가 없습니다');
+  for (const playerId of excluded) t.rps.alive.delete(playerId);
+  if (t.rps.alive.size === 1) {
+    const playerId = [...t.rps.alive][0];
+    const player = t.players.get(playerId);
+    t.rps.roundWinners = [playerId];
+    t.rps.winnerId = playerId;
+    t.rps.status = 'finished';
+    if (!t.awards.some((award) => award.category === 'mini:group-rps')) {
+      t.awards.push({ category: 'mini:group-rps', title: '단체 가위바위보 우승', playerId, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
+    }
+  } else if ([...t.rps.alive].every((playerId) => t.rps.choices.has(playerId))) {
+    resolveGroupRpsRound(t);
+  }
+  return excluded;
+}
+
 function resolveGroupRpsRound(t) {
   const computerChoice = RPS_CHOICES[crypto.randomInt(RPS_CHOICES.length)];
   const winners = [...t.rps.alive].filter((playerId) => RPS_BEATS[t.rps.choices.get(playerId)] === computerChoice);
@@ -791,6 +825,6 @@ module.exports = {
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
-  startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal, returnToGameSelection
-  , assignTeams, startWorkshopQuiz, revealWorkshopAnswer, awardWorkshopPoint, nextWorkshopQuestion, resetWorkshopQuiz
+  startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, excludeDisconnectedGroupRpsPlayers, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal, returnToGameSelection
+  , assignTeams, startWorkshopQuiz, revealWorkshopAnswer, awardWorkshopPoint, nextWorkshopQuestion, finishWorkshopQuiz, resetWorkshopQuiz
 };
