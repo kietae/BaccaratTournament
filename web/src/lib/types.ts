@@ -146,6 +146,7 @@ export interface TableState {
     myChoice: 'rock' | 'paper' | 'scissors' | null;
     computerChoice: 'rock' | 'paper' | 'scissors' | null;
     roundWinnerIds: string[];
+    roundChoices: { playerId: string; nickname: string; choice: 'rock' | 'paper' | 'scissors' }[];
     winner: { playerId: string; nickname: string; employeeId: string } | null;
   };
   teams: {

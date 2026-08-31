@@ -148,6 +148,15 @@ export default function PlayPage() {
     return response.ok ? null : (response.error || '제출하지 못했습니다');
   }
 
+  // Once the administrator registers a prize after a completed mini-game,
+  // move every participant to raffle registration instead of leaving them on
+  // the previous game's final screen.
+  if (state.raffle.status !== 'idle' && state.rps.status === 'finished') return (
+    <main className="min-h-[100svh] flex items-center justify-center p-2 lg:p-5">
+      <div className="w-full max-w-4xl"><PrizeDraw state={state} /></div>
+    </main>
+  );
+
   if (state.workshopQuiz.status !== 'idle' || (state.status !== 'active' && state.teams.length > 0)) return (
     <main className="min-h-[100svh] flex items-center justify-center p-2 lg:p-5">
       <WorkshopQuizGame state={state} />

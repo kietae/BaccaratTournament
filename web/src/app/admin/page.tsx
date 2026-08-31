@@ -32,14 +32,14 @@ export default function AdminPage() {
   const [qr, setQr] = useState<string | null>(null);
   const [name, setName] = useState('바카라 토너먼트');
   const [initialChips, setInitialChips] = useState(30_000_000);
-  const [roundLimit, setRoundLimit] = useState(10);
-  const [bettingSeconds, setBettingSeconds] = useState(25);
+  const [roundLimit, setRoundLimit] = useState(7);
+  const [bettingSeconds, setBettingSeconds] = useState(30);
   const [miniGameSeconds, setMiniGameSeconds] = useState(60);
-  const [initialRoadGames, setInitialRoadGames] = useState(3);
-  const [mainMin, setMainMin] = useState(100_000);
-  const [mainMax, setMainMax] = useState(10_000_000);
-  const [sideMin, setSideMin] = useState(10_000);
-  const [sideMax, setSideMax] = useState(1_000_000);
+  const [initialRoadGames, setInitialRoadGames] = useState(5);
+  const [mainMin, setMainMin] = useState(1_000_000);
+  const [mainMax, setMainMax] = useState(30_000_000);
+  const [sideMin, setSideMin] = useState(100_000);
+  const [sideMax, setSideMax] = useState(3_000_000);
   const [payoutMode, setPayoutMode] = useState<PayoutMode>('no-commission');
   const [error, setError] = useState<string | null>(null);
   const [presentation, setPresentation] = useState(false);
@@ -185,6 +185,22 @@ export default function AdminPage() {
     else await document.exitFullscreen().catch(() => undefined);
   }
 
+  async function returnToGameSelection() {
+    if (!state || !adminToken) return;
+    const gameInProgress = state.status === 'active'
+      || state.miniGame.status === 'collecting'
+      || state.rps.status === 'selecting'
+      || state.rps.status === 'round-result'
+      || state.workshopQuiz.status === 'question'
+      || state.workshopQuiz.status === 'revealed'
+      || state.raffle.status === 'collecting';
+    if (gameInProgress && !window.confirm('현재 진행 중인 게임을 종료하고 게임 선택 화면으로 돌아갈까요?')) return;
+    setError(null);
+    window.speechSynthesis?.cancel();
+    const result = await ack<{ ok: boolean; error?: string }>('admin:returnToGameSelection', { adminToken });
+    if (!result.ok) setError(result.error || '게임 선택 화면으로 돌아가지 못했습니다');
+  }
+
   function prepareNewTournament() {
     window.speechSynthesis?.cancel();
     localStorage.removeItem(ADMIN_TOKEN_KEY);
@@ -240,7 +256,7 @@ export default function AdminPage() {
   return <main className={`flex-1 w-full mx-auto p-3 lg:p-4 ${state.status === 'active' ? 'h-[100dvh] overflow-hidden flex flex-col' : ''} ${presentation ? 'max-w-none' : 'max-w-7xl'}`}>
     <header className="flex items-center justify-between gap-4 border-b border-amber-500/20 pb-2 mb-3 shrink-0">
       <div><p className="text-xs tracking-[0.24em] text-amber-500 uppercase">Live Tournament</p><h1 className="text-xl lg:text-3xl font-bold text-amber-100">{state.tournamentName}</h1></div>
-      <div className="flex items-center gap-3"><div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
+      <div className="flex items-center gap-2"><div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button data-testid="return-to-game-selection" onClick={returnToGameSelection} className="rounded-lg border border-amber-500/50 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/20">게임 선택</button><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
     </header>
     {state.status !== 'active' && (state.status === 'lobby' || state.miniGame.status !== 'idle' || state.rps.status !== 'idle' || state.workshopQuiz.status !== 'idle') ? <Lobby state={state} qr={qr} adminToken={adminToken} onStart={startTournament} onStartMiniGame={startMiniGame} onRevealMiniGame={revealMiniGame} error={error} /> : state.status === 'finished' ? <div className="flex flex-col gap-5"><FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} error={error} /><GameSelectionActions state={state} onStart={startTournament} onStartMiniGame={startMiniGame} /><WorkshopQuizGame state={state} adminToken={adminToken} /><PrizeDraw state={state} adminToken={adminToken} /></div> : <LiveDashboard state={state} />}
   </main>;

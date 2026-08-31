@@ -6,6 +6,62 @@ const table = require('../../web/src/server/table');
 const { buildSnapshot } = require('../../web/src/server/serialize');
 const { makeCard } = require('../cards');
 
+test('administrator tournament defaults match the event setup', () => {
+  const tournament = table.createTournament();
+  assert.equal(tournament.roundLimit, 7);
+  assert.equal(tournament.bettingSeconds, 30);
+  assert.equal(tournament.initialRoadGames, 5);
+  assert.deepEqual(tournament.betLimits, {
+    mainMin: 1000000,
+    mainMax: 30000000,
+    sideMin: 100000,
+    sideMax: 3000000
+  });
+});
+
+test('group rock paper scissors shows final choices before revealing the champion', () => {
+  const tournament = table.createTournament();
+  const winner = table.addPlayer(tournament, 'Winner');
+  const runnerUp = table.addPlayer(tournament, 'Runner-up');
+  tournament.rps = {
+    status: 'round-result',
+    roundNo: 2,
+    alive: new Set([winner.id, runnerUp.id]),
+    choices: new Map([[winner.id, 'paper'], [runnerUp.id, 'rock']]),
+    computerChoice: 'rock',
+    roundWinners: [winner.id],
+    winnerId: winner.id
+  };
+
+  const result = buildSnapshot(tournament, null).rps;
+  assert.deepEqual(result.roundChoices.map(({ nickname, choice }) => [nickname, choice]), [['Winner', 'paper'], ['Runner-up', 'rock']]);
+  assert.equal(result.status, 'round-result');
+
+  table.nextGroupRpsRound(tournament);
+  assert.equal(tournament.rps.status, 'finished');
+});
+
+test('returning to game selection ends active games but keeps participants', () => {
+  const tournament = table.createTournament({ initialRoadGames: 0 });
+  const player = table.addPlayer(tournament, 'Player');
+  table.startTournament(tournament);
+  player.chips = 123;
+  tournament.rps.status = 'finished';
+  tournament.raffle.prizes.push({ id: 'prize', name: 'Prize' });
+
+  table.returnToGameSelection(tournament);
+
+  assert.equal(tournament.status, 'lobby');
+  assert.equal(tournament.players.size, 1);
+  assert.equal(player.chips, tournament.initialChips);
+  assert.equal(tournament.roundNo, 0);
+  assert.equal(tournament.miniGame.status, 'idle');
+  assert.equal(tournament.rps.status, 'idle');
+  assert.equal(tournament.workshopQuiz.status, 'idle');
+  assert.equal(tournament.raffle.status, 'idle');
+  assert.deepEqual(tournament.raffle.prizes, []);
+});
+
 test('workshop teams are randomized into groups close to four or five', () => {
   const tournament = table.createTournament({ name: 'workshop' });
   for (let index = 1; index <= 18; index += 1) table.addPlayer(tournament, `player-${index}`, `E${index}`);
@@ -102,7 +158,7 @@ test('players cannot bet or confirm before the admin starts the tournament', () 
 });
 
 test('starting reveals configured road games one at a time without consuming rounds or chips', () => {
-  const tournament = table.createTournament({ name: 'seeded', initialChips: 10000, roundLimit: 2 });
+  const tournament = table.createTournament({ name: 'seeded', initialChips: 10000, roundLimit: 2, initialRoadGames: 3 });
   const player = table.addPlayer(tournament, 'player');
   table.startTournament(tournament);
   assert.equal(tournament.status, 'active');

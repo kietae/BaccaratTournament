@@ -50,7 +50,24 @@ export default function GroupRpsGame({ state, adminToken }: { state: TableState;
         )}
 
         {game.status === 'round-result' && (
-          <div className="mt-7"><p className="text-sm font-bold tracking-[.25em] text-fuchsia-200">COMPUTER&apos;S PICK</p><div className="rps-reveal mt-2 text-9xl">{computer.emoji}</div><p className="mt-2 text-3xl font-black text-white">컴퓨터는 {computer.label}!</p>{game.roundWinnerIds.length === 0 ? <div className="mt-5 rounded-2xl bg-amber-400/10 p-4 text-amber-200"><b>승자가 없습니다!</b> 현재 생존자 전원이 다시 대결합니다.</div> : <div className="mt-5"><p className="text-xl font-black text-emerald-300">{game.roundWinnerIds.length}명 생존!</p><div className="mt-3 flex flex-wrap justify-center gap-2">{game.alivePlayers.filter((player) => game.roundWinnerIds.includes(player.playerId)).map((player) => <span key={player.playerId} className="rps-survivor rounded-full bg-emerald-400 px-4 py-2 font-black text-emerald-950">✨ {player.nickname}</span>)}</div></div>}{!adminToken && <p className={`mt-5 text-lg font-black ${survived ? 'text-emerald-300' : 'text-zinc-400'}`}>{alive ? (survived ? '다음 라운드 진출!' : '아쉽지만 탈락했습니다') : '대결 진행 중'}</p>}{adminToken && <button onClick={async () => { const result = await ack<{ ok: boolean; error?: string }>('admin:rpsNextRound', { adminToken }); if (!result.ok) setMessage(result.error || '다음 라운드를 시작하지 못했습니다'); }} className="mt-7 rounded-xl bg-fuchsia-300 px-8 py-4 text-lg font-black text-fuchsia-950">다음 라운드 시작</button>}</div>
+          <div className="mt-7">
+            <p className="text-sm font-bold tracking-[.25em] text-fuchsia-200">COMPUTER&apos;S PICK</p>
+            <div className="rps-reveal mt-2 text-9xl">{computer.emoji}</div>
+            <p className="mt-2 text-3xl font-black text-white">컴퓨터는 {computer.label}!</p>
+            <div className="mx-auto mt-6 grid max-w-3xl gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {game.roundChoices.map((player) => {
+                const picked = choiceInfo(player.choice);
+                const won = game.roundWinnerIds.includes(player.playerId);
+                return <div key={player.playerId} className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left ${won ? 'border-emerald-300/60 bg-emerald-400/15' : 'border-white/10 bg-black/25'}`}>
+                  <span className="text-4xl">{picked.emoji}</span>
+                  <span className="min-w-0"><b className="block truncate text-white">{player.nickname}</b><span className={won ? 'text-emerald-300' : 'text-zinc-400'}>{picked.label} · {won ? '승리' : '탈락'}</span></span>
+                </div>;
+              })}
+            </div>
+            {game.roundWinnerIds.length === 0 ? <div className="mt-5 rounded-2xl bg-amber-400/10 p-4 text-amber-200"><b>승자가 없습니다!</b> 현재 생존자 전원이 다시 대결합니다.</div> : <div className="mt-5"><p className="text-xl font-black text-emerald-300">{game.roundWinnerIds.length === 1 ? '최종 우승자가 결정되었습니다!' : `${game.roundWinnerIds.length}명 생존!`}</p><div className="mt-3 flex flex-wrap justify-center gap-2">{game.alivePlayers.filter((player) => game.roundWinnerIds.includes(player.playerId)).map((player) => <span key={player.playerId} className="rps-survivor rounded-full bg-emerald-400 px-4 py-2 font-black text-emerald-950">✨ {player.nickname}</span>)}</div></div>}
+            {!adminToken && <p className={`mt-5 text-lg font-black ${survived ? 'text-emerald-300' : 'text-zinc-400'}`}>{alive ? (survived ? (game.roundWinnerIds.length === 1 ? '우승자 발표를 기다려 주세요!' : '다음 라운드 진출!') : '아쉽지만 탈락했습니다') : '대결 진행 중'}</p>}
+            {adminToken && <button onClick={async () => { const result = await ack<{ ok: boolean; error?: string }>('admin:rpsNextRound', { adminToken }); if (!result.ok) setMessage(result.error || '다음 화면으로 이동하지 못했습니다'); }} className="mt-7 rounded-xl bg-fuchsia-300 px-8 py-4 text-lg font-black text-fuchsia-950">{game.roundWinnerIds.length === 1 ? '우승자 보기' : '다음 라운드 시작'}</button>}
+          </div>
         )}
 
         {game.status === 'finished' && <div className="mt-8"><div className="rps-winner text-8xl">🏆</div><p className="mt-3 text-lg font-bold text-amber-300">단체 가위바위보 최종 우승</p><h3 className="mt-2 text-5xl font-black text-white">{game.winner?.nickname}</h3>{game.winner?.employeeId && <p className="mt-2 text-zinc-400">사번 {game.winner.employeeId}</p>}<div className="mx-auto mt-7 h-1 w-48 rounded-full bg-gradient-to-r from-transparent via-amber-300 to-transparent" /></div>}

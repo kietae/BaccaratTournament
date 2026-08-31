@@ -234,6 +234,17 @@ function registerSocketServer(io) {
       ack?.({ ok: true });
     });
 
+    socket.on('admin:returnToGameSelection', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) {
+        ack?.({ ok: false, error: '권한이 없습니다' });
+        return;
+      }
+      clearTimers();
+      table.returnToGameSelection(t);
+      ack?.({ ok: true });
+      broadcastState();
+    });
+
     socket.on('admin:startMiniGame', (payload, ack) => {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try {

@@ -91,6 +91,11 @@ function buildSnapshot(t, forPlayerId) {
     myChoice: forPlayerId ? (t.rps.choices.get(forPlayerId) ?? null) : null,
     computerChoice: t.rps.status === 'selecting' ? null : t.rps.computerChoice,
     roundWinnerIds: t.rps.status === 'selecting' ? [] : t.rps.roundWinners,
+    roundChoices: t.rps.status === 'selecting' ? [] : [...t.rps.choices].map(([playerId, choice]) => ({
+      playerId,
+      nickname: t.players.get(playerId)?.nickname || '-',
+      choice
+    })),
     winner: rpsWinner ? { playerId: rpsWinner.id, nickname: rpsWinner.nickname, employeeId: rpsWinner.employeeId } : null
   };
   const myTeam = forPlayerId ? t.teams.find((team) => team.playerIds.includes(forPlayerId)) : null;

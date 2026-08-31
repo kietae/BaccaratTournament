@@ -7,10 +7,11 @@ const { buildBigRoad } = require('./bigroad');
 const { BET_TYPE_SET } = require('./betTypes');
 const { QUIZZES } = require('./workshopQuizData');
 
-const BETTING_SECONDS = 25;
+const BETTING_SECONDS = 30;
 const NEXT_ROUND_SECONDS = 6;
 const DEFAULT_INITIAL_CHIPS = 30000000;
-const DEFAULT_BET_LIMITS = { mainMin: 100000, mainMax: 10000000, sideMin: 10000, sideMax: 1000000 };
+const DEFAULT_ROUND_LIMIT = 7;
+const DEFAULT_BET_LIMITS = { mainMin: 1000000, mainMax: 30000000, sideMin: 100000, sideMax: 3000000 };
 
 function id() {
   return crypto.randomBytes(8).toString('hex');
@@ -48,10 +49,10 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, mini
     id: id(),
     name: name || '바카라 토너먼트',
     initialChips: initialChips > 0 ? initialChips : DEFAULT_INITIAL_CHIPS,
-    roundLimit: roundLimit > 0 ? roundLimit : null,
+    roundLimit: roundLimit == null ? DEFAULT_ROUND_LIMIT : (roundLimit > 0 ? roundLimit : null),
     bettingSeconds: positiveNumber(bettingSeconds, BETTING_SECONDS),
     miniGameSeconds: Math.max(10, Math.min(300, positiveNumber(miniGameSeconds, 60))),
-    initialRoadGames: Math.max(0, Math.min(50, Math.floor(Number(initialRoadGames ?? 3)) || 0)),
+    initialRoadGames: Math.max(0, Math.min(50, Math.floor(Number(initialRoadGames ?? 5)) || 0)),
     seedProgress: 0,
     seedPreview: null,
     betLimits: limits,
@@ -606,6 +607,23 @@ function roundLimitReached(t) {
   return t.roundLimit != null && t.roundNo >= t.roundLimit;
 }
 
+function returnToGameSelection(t) {
+  t.status = 'lobby';
+  t.seedProgress = 0;
+  t.seedPreview = null;
+  t.roundNo = 0;
+  t.roundHistory = [];
+  t.shoe = engine.makeDealer(engine.createShoe(8));
+  t.round = freshRound(0);
+  for (const player of t.players.values()) player.chips = t.initialChips;
+  t.miniGame = { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null };
+  t.rps = { status: 'idle', roundNo: 0, alive: new Set(), choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null };
+  t.teams = [];
+  resetWorkshopQuiz(t);
+  t.raffle = { status: 'idle', entries: new Map(), nextNumber: 1, prizes: [], winners: [] };
+  return t;
+}
+
 function startMiniGame(t, type = 'beauty-contest', durationSeconds = t.miniGameSeconds) {
   if (t.status === 'active') throw new GameError('바카라 토너먼트 진행 중에는 미니게임을 시작할 수 없습니다');
   if (t.miniGame.status === 'collecting') throw new GameError('이미 미니게임이 진행 중입니다');
@@ -643,7 +661,9 @@ function resolveGroupRpsRound(t) {
   const winners = [...t.rps.alive].filter((playerId) => RPS_BEATS[t.rps.choices.get(playerId)] === computerChoice);
   t.rps.computerChoice = computerChoice;
   t.rps.roundWinners = winners;
-  t.rps.status = winners.length === 1 ? 'finished' : 'round-result';
+  // Keep even the final round on its result screen so everyone can see what
+  // each participant played before the administrator reveals the champion.
+  t.rps.status = 'round-result';
   if (winners.length === 1) {
     const playerId = winners[0];
     const player = t.players.get(playerId);
@@ -656,6 +676,10 @@ function resolveGroupRpsRound(t) {
 
 function nextGroupRpsRound(t) {
   if (t.rps.status !== 'round-result') throw new GameError('다음 라운드를 시작할 수 없습니다');
+  if (t.rps.roundWinners.length === 1) {
+    t.rps.status = 'finished';
+    return t.rps;
+  }
   if (t.rps.roundWinners.length > 1) t.rps.alive = new Set(t.rps.roundWinners);
   // 승자가 한 명도 없으면 전원 탈락 대신 현재 생존자끼리 재대결합니다.
   t.rps.roundNo += 1;
@@ -767,6 +791,6 @@ module.exports = {
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
-  startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal
+  startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal, returnToGameSelection
   , assignTeams, startWorkshopQuiz, revealWorkshopAnswer, awardWorkshopPoint, nextWorkshopQuestion, resetWorkshopQuiz
 };
