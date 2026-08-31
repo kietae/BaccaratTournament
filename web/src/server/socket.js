@@ -337,6 +337,41 @@ function registerSocketServer(io) {
       catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
+    socket.on('admin:assignTeams', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.assignTeams(t, payload?.teamCount); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:startWorkshopQuiz', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.startWorkshopQuiz(t, payload?.type); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:revealWorkshopAnswer', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.revealWorkshopAnswer(t); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:awardWorkshopPoint', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.awardWorkshopPoint(t, payload?.teamId); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:nextWorkshopQuestion', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.nextWorkshopQuestion(t); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:resetWorkshopQuiz', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      table.resetWorkshopQuiz(t); ack?.({ ok: true }); broadcastState();
+    });
+
     socket.on('raffle:enter', (payload, ack) => {
       const playerId = socketPlayer.get(socket.id);
       try { const number = table.enterRaffle(t, playerId); ack?.({ ok: true, number }); broadcastState(); }

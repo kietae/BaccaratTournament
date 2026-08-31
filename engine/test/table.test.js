@@ -6,6 +6,44 @@ const table = require('../../web/src/server/table');
 const { buildSnapshot } = require('../../web/src/server/serialize');
 const { makeCard } = require('../cards');
 
+test('workshop teams are randomized into groups close to four or five', () => {
+  const tournament = table.createTournament({ name: 'workshop' });
+  for (let index = 1; index <= 18; index += 1) table.addPlayer(tournament, `player-${index}`, `E${index}`);
+  const teams = table.assignTeams(tournament);
+  assert.equal(teams.length, 4);
+  assert.deepEqual(teams.map((team) => team.playerIds.length).sort(), [4, 4, 5, 5]);
+  assert.equal(new Set(teams.flatMap((team) => team.playerIds)).size, 18);
+});
+
+test('administrator can choose the number of workshop teams', () => {
+  const tournament = table.createTournament({ name: 'workshop' });
+  for (let index = 1; index <= 17; index += 1) table.addPlayer(tournament, `player-${index}`, `T${index}`);
+  const teams = table.assignTeams(tournament, 3);
+  assert.equal(teams.length, 3);
+  assert.deepEqual(teams.map((team) => team.playerIds.length).sort(), [5, 6, 6]);
+});
+
+test('administrator awards the fastest correct team and can correct the selection', () => {
+  const tournament = table.createTournament({ name: 'workshop' });
+  const players = Array.from({ length: 8 }, (_, index) => table.addPlayer(tournament, `player-${index}`, `Q${index}`));
+  table.assignTeams(tournament, 2);
+  table.startWorkshopQuiz(tournament, 'initial');
+  assert.equal(tournament.workshopQuiz.questionOrder.length, 10);
+  assert.equal(new Set(tournament.workshopQuiz.questionOrder).size, 10);
+  table.awardWorkshopPoint(tournament, tournament.teams[0].id);
+  table.awardWorkshopPoint(tournament, tournament.teams[0].id);
+  assert.equal(tournament.teams[0].score, 1);
+  table.awardWorkshopPoint(tournament, tournament.teams[1].id);
+  assert.equal(tournament.teams[0].score, 0);
+  assert.equal(tournament.teams[1].score, 1);
+  table.revealWorkshopAnswer(tournament);
+  assert.throws(() => table.revealWorkshopAnswer(tournament));
+  const playerView = buildSnapshot(tournament, players[0].id);
+  assert.equal(playerView.workshopQuiz.totalQuestions, 10);
+  assert.ok(playerView.workshopQuiz.question.answer);
+  assert.equal(playerView.workshopQuiz.awardedTeamId, tournament.teams[1].id);
+});
+
 function activeTable() {
   const tournament = table.createTournament({ name: 'test', initialChips: 10000, roundLimit: 1 });
   const player = table.addPlayer(tournament, 'squeezer');

@@ -5,6 +5,7 @@ const path = require('path');
 const engine = require(path.join(__dirname, '..', '..', '..', 'engine'));
 const { buildBigRoad } = require('./bigroad');
 const { BET_TYPE_SET } = require('./betTypes');
+const { QUIZZES } = require('./workshopQuizData');
 
 const BETTING_SECONDS = 25;
 const NEXT_ROUND_SECONDS = 6;
@@ -68,6 +69,8 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, mini
     miniGame: { type: null, status: 'idle', submissions: new Map(), submissionOrder: new Map(), nextSubmissionOrder: 1, average: null, target: null, results: [], endsAt: null },
     raffle: { status: 'idle', entries: new Map(), nextNumber: 1, prizes: [], winners: [] },
     rps: { status: 'idle', roundNo: 0, alive: new Set(), choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null },
+    teams: [],
+    workshopQuiz: { type: null, status: 'idle', questionIndex: 0, questionOrder: [], submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null },
     awards: [],
     timers: {}
   };
@@ -106,6 +109,77 @@ function addPlayer(t, nickname, employeeId) {
   t.players.set(player.id, player);
   t.tokenIndex.set(player.token, player.id);
   return player;
+}
+
+function shuffle(values) {
+  const result = [...values];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = crypto.randomInt(i + 1);
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function assignTeams(t, requestedTeamCount) {
+  const playerIds = shuffle([...t.players.keys()]);
+  if (!playerIds.length) throw new GameError('조를 편성할 참가자가 없습니다');
+  const recommendedCount = Math.max(1, Math.round(playerIds.length / 4.5));
+  const parsedCount = Math.floor(Number(requestedTeamCount));
+  const teamCount = Number.isInteger(parsedCount) && parsedCount > 0
+    ? Math.min(parsedCount, playerIds.length)
+    : recommendedCount;
+  t.teams = Array.from({ length: teamCount }, (_, index) => ({ id: id(), name: `${index + 1}조`, playerIds: [], score: 0 }));
+  playerIds.forEach((playerId, index) => t.teams[index % teamCount].playerIds.push(playerId));
+  t.workshopQuiz = { type: null, status: 'idle', questionIndex: 0, questionOrder: [], submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
+  return t.teams;
+}
+
+function startWorkshopQuiz(t, type) {
+  if (t.status === 'active') throw new GameError('바카라 진행 중에는 워크숍 퀴즈를 시작할 수 없습니다');
+  if (!QUIZZES[type]) throw new GameError('지원하지 않는 워크숍 퀴즈입니다');
+  if (!t.teams.length) assignTeams(t);
+  const questionOrder = shuffle(QUIZZES[type].questions.map((_, index) => index)).slice(0, 10);
+  t.workshopQuiz = { type, status: 'question', questionIndex: 0, questionOrder, submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
+  return t.workshopQuiz;
+}
+
+function resetWorkshopQuiz(t) {
+  t.workshopQuiz = { type: null, status: 'idle', questionIndex: 0, questionOrder: [], submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
+  return t.workshopQuiz;
+}
+
+function revealWorkshopAnswer(t) {
+  const quiz = t.workshopQuiz;
+  if (quiz.status !== 'question') throw new GameError('공개할 문제가 없습니다');
+  quiz.status = 'revealed';
+  return quiz;
+}
+
+function awardWorkshopPoint(t, teamId) {
+  const quiz = t.workshopQuiz;
+  if (quiz.status !== 'question' && quiz.status !== 'revealed') throw new GameError('현재 점수를 줄 수 없습니다');
+  const team = t.teams.find((entry) => entry.id === teamId);
+  if (!team) throw new GameError('조를 찾을 수 없습니다');
+  if (quiz.awardedTeamId === teamId) return quiz;
+  const previous = t.teams.find((entry) => entry.id === quiz.awardedTeamId);
+  if (previous) previous.score = Math.max(0, previous.score - 1);
+  team.score += 1;
+  quiz.awardedTeamId = teamId;
+  return quiz;
+}
+
+function nextWorkshopQuestion(t) {
+  const quiz = t.workshopQuiz;
+  if (quiz.status !== 'revealed') throw new GameError('정답을 먼저 공개해 주세요');
+  if (quiz.questionIndex >= quiz.questionOrder.length - 1) {
+    quiz.status = 'finished';
+    return quiz;
+  }
+  quiz.questionIndex += 1;
+  quiz.status = 'question';
+  quiz.submissions = new Map();
+  quiz.awardedTeamId = null;
+  return quiz;
 }
 
 function playerByToken(t, tok) {
@@ -694,4 +768,5 @@ module.exports = {
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
   startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal
+  , assignTeams, startWorkshopQuiz, revealWorkshopAnswer, awardWorkshopPoint, nextWorkshopQuestion, resetWorkshopQuiz
 };

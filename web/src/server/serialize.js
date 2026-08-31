@@ -1,6 +1,7 @@
 'use strict';
 
 const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze, activeSqueezerId } = require('./table');
+const { QUIZZES } = require('./workshopQuizData');
 
 // The squeezer sees the true rank/suit of ONLY the card currently under
 // their thumb, the instant it becomes active — that's what makes the peel
@@ -92,6 +93,34 @@ function buildSnapshot(t, forPlayerId) {
     roundWinnerIds: t.rps.status === 'selecting' ? [] : t.rps.roundWinners,
     winner: rpsWinner ? { playerId: rpsWinner.id, nickname: rpsWinner.nickname, employeeId: rpsWinner.employeeId } : null
   };
+  const myTeam = forPlayerId ? t.teams.find((team) => team.playerIds.includes(forPlayerId)) : null;
+  const quizDefinition = t.workshopQuiz.type ? QUIZZES[t.workshopQuiz.type] : null;
+  const sourceQuestionIndex = t.workshopQuiz.questionOrder?.[t.workshopQuiz.questionIndex] ?? t.workshopQuiz.questionIndex;
+  const currentQuestion = quizDefinition?.questions[sourceQuestionIndex] || null;
+  const teams = t.teams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    score: team.score,
+    members: team.playerIds.map((playerId) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-' }))
+  }));
+  const workshopQuiz = {
+    type: t.workshopQuiz.type,
+    title: quizDefinition?.title || null,
+    input: quizDefinition?.input || null,
+    status: t.workshopQuiz.status,
+    questionIndex: t.workshopQuiz.questionIndex,
+    totalQuestions: t.workshopQuiz.questionOrder?.length || 0,
+    question: currentQuestion ? {
+      category: currentQuestion.category,
+      prompt: currentQuestion.prompt,
+      image: currentQuestion.image || null,
+      answerImage: t.workshopQuiz.status === 'revealed' || t.workshopQuiz.status === 'finished' ? (currentQuestion.answerImage || null) : null,
+      answer: t.workshopQuiz.status === 'revealed' || t.workshopQuiz.status === 'finished' ? currentQuestion.answer : null,
+      explanation: t.workshopQuiz.status === 'revealed' || t.workshopQuiz.status === 'finished' ? (currentQuestion.explanation || null) : null
+    } : null,
+    myTeamId: myTeam?.id || null,
+    awardedTeamId: t.workshopQuiz.awardedTeamId || null
+  };
 
   let totalPot = 0;
   const mainBetSummary = {
@@ -126,6 +155,8 @@ function buildSnapshot(t, forPlayerId) {
     miniGame,
     raffle,
     rps,
+    teams,
+    workshopQuiz,
     awards: t.awards,
     roundNo: t.roundNo,
     phase: round.phase,

@@ -14,6 +14,7 @@ import OpeningRoadGame from '@/components/OpeningRoadGame';
 import KeynesMiniGame, { MiniGameRules } from '@/components/KeynesMiniGame';
 import PrizeDraw from '@/components/PrizeDraw';
 import GroupRpsGame from '@/components/GroupRpsGame';
+import WorkshopQuizGame from '@/components/WorkshopQuizGame';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 
@@ -146,6 +147,12 @@ export default function PlayPage() {
     const response = await ack<{ ok: boolean; error?: string }>('submitMiniGame', { value });
     return response.ok ? null : (response.error || '제출하지 못했습니다');
   }
+
+  if (state.workshopQuiz.status !== 'idle' || (state.status !== 'active' && state.teams.length > 0)) return (
+    <main className="min-h-[100svh] flex items-center justify-center p-2 lg:p-5">
+      <WorkshopQuizGame state={state} />
+    </main>
+  );
 
   if (state.rps.status !== 'idle') return (
     <main className="min-h-[100svh] flex items-center justify-center p-2 lg:p-5">

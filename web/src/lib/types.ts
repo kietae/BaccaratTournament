@@ -148,6 +148,23 @@ export interface TableState {
     roundWinnerIds: string[];
     winner: { playerId: string; nickname: string; employeeId: string } | null;
   };
+  teams: {
+    id: string;
+    name: string;
+    score: number;
+    members: { playerId: string; nickname: string }[];
+  }[];
+  workshopQuiz: {
+    type: 'initial' | 'ox' | 'faces' | 'brands' | null;
+    title: string | null;
+    input: 'text' | 'ox' | null;
+    status: 'idle' | 'question' | 'revealed' | 'finished';
+    questionIndex: number;
+    totalQuestions: number;
+    question: { category: string; prompt: string; image: string | null; answerImage: string | null; answer: string | null; explanation: string | null } | null;
+    myTeamId: string | null;
+    awardedTeamId: string | null;
+  };
   awards: { category: string; title: string; playerId: string; nickname: string; employeeId: string; at: number }[];
   roundNo: number;
   phase: Phase;

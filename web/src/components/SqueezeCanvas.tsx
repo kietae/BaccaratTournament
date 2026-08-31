@@ -7,10 +7,11 @@ import type { Edge } from '@/lib/types';
 interface Pt { x: number; y: number; }
 
 const LONG_EDGES = new Set<Edge>(['left', 'right']);
-// Keep the moving edge inside the canvas while the stiffer card stock carries
-// the crease to roughly 72-75% of the face.
+// The reveal still completes at 94%, while the rendered flap is allowed to
+// travel beyond the original card boundary into a transparent bleed area.
 const REVEAL_FRAC = 0.94;
-const MAX_PULL_FRAC = 1;
+const MAX_PULL_FRAC = 1.08;
+const FLAP_TIP_SCALE = 1.25;
 
 export interface SqueezeCanvasProps {
   mode: 'interactive' | 'remote';
@@ -34,6 +35,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export default function SqueezeCanvas(props: SqueezeCanvasProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const propsRef = useRef(props);
   useLayoutEffect(() => { propsRef.current = props; });
@@ -46,8 +48,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     const canvas = canvasNode;
     const ctx = context;
 
-    const textureWidth = 880;
-    const textureHeight = 1280;
+    const textureWidth = 1320;
+    const textureHeight = 1920;
     const backTexture = document.createElement('canvas');
     const frontTexture = document.createElement('canvas');
     const mysteryTexture = document.createElement('canvas');
@@ -68,6 +70,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     let width = 1;
     let height = 1;
     let dpr = 1;
+    let bleed = 1;
     let startZone = 40;
     let lastRank = '';
     let lastSuit = '';
@@ -85,13 +88,21 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     };
 
     function resize() {
-      const rect = canvas.getBoundingClientRect();
+      const rect = hostRef.current?.getBoundingClientRect();
+      if (!rect) return;
       width = Math.max(1, Math.round(rect.width));
       height = Math.max(1, Math.round(rect.height));
+      bleed = Math.ceil(Math.max(width, height) * 0.3);
       dpr = clamp(window.devicePixelRatio || 1, 1, 2.5);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvas.style.width = `${width + bleed * 2}px`;
+      canvas.style.height = `${height + bleed * 2}px`;
+      canvas.style.left = `${-bleed}px`;
+      canvas.style.top = `${-bleed}px`;
+      canvas.width = Math.round((width + bleed * 2) * dpr);
+      canvas.height = Math.round((height + bleed * 2) * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, bleed * dpr, bleed * dpr);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       startZone = Math.max(30, 42 * width / 340);
     }
     resize();
@@ -99,7 +110,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     observer.observe(canvas);
 
     function localPoint(event: PointerEvent): Pt {
-      const rect = canvas.getBoundingClientRect();
+      const rect = hostRef.current?.getBoundingClientRect() ?? canvas.getBoundingClientRect();
       return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     }
 
@@ -156,8 +167,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       if (!state.dragging) return;
       const point = localPoint(event);
       state.pointer = {
-        x: clamp(point.x, 0, width),
-        y: clamp(point.y, 0, height)
+        x: clamp(point.x, -width * 0.08, width * 1.08),
+        y: clamp(point.y, -height * 0.08, height * 1.08)
       };
       if (state.edge && state.origin && !state.revealSent) {
         const pct = depth(state.edge, state.origin, state.pointer) / extentFor(state.edge, width, height);
@@ -236,9 +247,9 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // edge lands at the moving tip while the inner artwork stays beside the
       // fold. This is a material mapping, not a stationary window into the face.
       for (let tangent = 0; tangent < tangentSize; tangent += step) {
-        const { pull, bell } = pullAt(tangent + step * 0.5);
+        const { pull } = pullAt(tangent + step * 0.5);
         const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.54);
-        const tipDepth = pull;
+        const tipDepth = pull * FLAP_TIP_SCALE;
         if (foldDepth < 0.25 || tipDepth - foldDepth < 0.25) continue;
 
         if (edge === 'left' || edge === 'right') {
@@ -330,7 +341,8 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.54);
         // Keep the thumb pad on the flap itself, between the crease and the
         // moving edge. Bias toward the edge so it still covers the index.
-        const thumbDepth = foldDepth + (pull - foldDepth) * 0.72;
+        const tipDepth = pull * FLAP_TIP_SCALE;
+        const thumbDepth = foldDepth + (tipDepth - foldDepth) * 0.72;
         const thumbTip = edge === 'left' ? { x: thumbDepth, y: tangent }
           : edge === 'right' ? { x: width - thumbDepth, y: tangent }
             : edge === 'top' ? { x: tangent, y: thumbDepth }
@@ -408,7 +420,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         lastSuit = current.suit!;
       }
       const face = current.rank && current.suit ? frontTexture : mysteryTexture;
-      ctx.clearRect(0, 0, width, height);
+      ctx.clearRect(-bleed, -bleed, width + bleed * 2, height + bleed * 2);
       if (current.revealed) ctx.drawImage(face, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
       else {
         ctx.drawImage(backTexture, 0, 0, textureWidth, textureHeight, 0, 0, width, height);
@@ -448,5 +460,5 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
     };
   }, []);
 
-  return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }} />;
+  return <div ref={hostRef} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'visible' }}><canvas ref={canvasRef} style={{ position: 'absolute', display: 'block', touchAction: 'none' }} /></div>;
 }
