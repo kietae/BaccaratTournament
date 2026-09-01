@@ -72,14 +72,14 @@ function buildSnapshot(t, forPlayerId) {
     target: t.miniGame.status === 'revealed' ? t.miniGame.target : null,
     results: t.miniGame.status === 'revealed' ? t.miniGame.results : []
   };
-  const raffleEntries = [...t.raffle.entries.entries()].map(([playerId, number]) => ({ playerId, number, nickname: t.players.get(playerId)?.nickname || '-' }));
+  const raffleEntries = [...t.players.values()].filter((player) => player.connected && !t.prizeRecipientIds.has(player.id)).map((player, index) => ({ playerId: player.id, number: index + 1, nickname: player.nickname }));
   const raffle = {
     status: t.raffle.status,
     entries: raffleEntries,
-    myNumber: forPlayerId ? (t.raffle.entries.get(forPlayerId) ?? null) : null,
+    myNumber: null,
     prizes: t.raffle.prizes,
     winners: t.raffle.winners,
-    remainingNumbers: raffleEntries.filter((entry) => !t.raffle.winners.some((winner) => winner.playerId === entry.playerId)).map((entry) => entry.number)
+    remainingNumbers: raffleEntries.map((entry) => entry.number)
   };
   const rpsWinner = t.rps.winnerId ? t.players.get(t.rps.winnerId) : null;
   const rps = {
@@ -111,12 +111,16 @@ function buildSnapshot(t, forPlayerId) {
     id: team.id,
     name: team.name,
     score: team.score,
+    overallScore: [...(t.overallGamePoints?.values() || [])].reduce((sum, gamePoints) => sum + (gamePoints.get(team.id) || 0), 0),
+    gameScore: t.workshopQuiz.gameScores?.get(team.id) || 0,
     members: team.playerIds.map((playerId) => ({ playerId, nickname: t.players.get(playerId)?.nickname || '-' }))
   }));
   const workshopQuiz = {
     type: t.workshopQuiz.type,
     title: quizDefinition?.title || null,
     input: quizDefinition?.input || null,
+    mode: quizDefinition?.mode || null,
+    rules: quizDefinition?.rules || [],
     status: t.workshopQuiz.status,
     questionIndex: t.workshopQuiz.questionIndex,
     totalQuestions: t.workshopQuiz.questionOrder?.length || 0,
@@ -130,6 +134,7 @@ function buildSnapshot(t, forPlayerId) {
     } : null,
     myTeamId: myTeam?.id || null,
     awardedTeamId: t.workshopQuiz.awardedTeamId || null
+    , winnerPlayerIds: t.workshopQuiz.winnerPlayerIds || []
   };
 
   let totalPot = 0;
@@ -155,6 +160,7 @@ function buildSnapshot(t, forPlayerId) {
     status: t.status,
     initialChips: t.initialChips,
     roundLimit: t.roundLimit,
+    isFinalRound: t.roundLimit != null && t.roundNo === t.roundLimit,
     bettingSeconds: t.bettingSeconds,
     miniGameSeconds: t.miniGameSeconds,
     betLimits: t.betLimits,
@@ -167,6 +173,7 @@ function buildSnapshot(t, forPlayerId) {
     rps,
     teams,
     workshopQuiz,
+    gamePrizes: t.gamePrizes,
     awards: t.awards,
     roundNo: t.roundNo,
     phase: round.phase,

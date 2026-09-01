@@ -17,6 +17,7 @@ import GroupRpsGame from '@/components/GroupRpsGame';
 import WorkshopQuizGame from '@/components/WorkshopQuizGame';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
+import { currentEventDisplay } from '@/lib/eventDisplay';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
   'road-seeding': '초기 게임 진행',
@@ -180,13 +181,12 @@ export default function PlayPage() {
     <>
     <div className="landscape-gate fixed inset-0 z-50 flex-col items-center justify-center gap-5 bg-[radial-gradient(circle_at_top,#34204e,#0b0a12_68%)] p-8 text-center">
       <div className="rotate-phone" aria-hidden="true">📱</div>
-      <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">토너먼트 게임은 가로모드 전용입니다.</p></div>
+      <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">바카라 게임은 가로모드 전용입니다.</p></div>
       <button type="button" onClick={enterLandscape} className="rounded-xl bg-amber-400 px-6 py-3 font-black text-zinc-950 active:scale-[0.98]">가로모드로 전환</button>
     </div>
     <main className="play-shell h-[100svh] overflow-hidden flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
       <TopBar state={state} />
       <BettingCountdown state={state} />
-      <div className="play-road"><BigRoadGrid road={state.bigRoad} /></div>
 
       {caption && (
         <div className="text-center text-sm text-amber-200 bg-black/50 rounded-full py-1 px-3 mx-auto">{caption}</div>
@@ -195,7 +195,7 @@ export default function PlayPage() {
       {state.status === 'lobby' && (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-3 text-center">
           <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
-          <p className="font-semibold text-amber-200">관리자가 토너먼트를 시작하기를 기다리는 중</p>
+          <p className="font-semibold text-amber-200">관리자가 다음 게임을 시작하기를 기다리는 중</p>
           <p className="text-xs text-zinc-500">이 화면을 그대로 유지해 주세요.</p>
           <div className="mt-2 w-full"><MiniGameRules /></div>
           <div className="mt-2 w-full"><PrizeDraw state={state} /></div>
@@ -241,11 +241,12 @@ export default function PlayPage() {
 
 function TopBar({ state }: { state: TableState }) {
   const remaining = useCountdown(state.phaseEndsAt);
+  const eventDisplay = currentEventDisplay(state);
   return (
     <div className="flex items-center justify-between text-xs text-zinc-400 border-b border-zinc-800 pb-2">
       <div>
-        <div className="text-amber-300 font-semibold">{state.tournamentName}</div>
-        <div data-testid="phase-label">Round {state.roundNo}{state.roundLimit ? ` / ${state.roundLimit}` : ''} · {PHASE_LABEL[state.phase]}</div>
+        <div className="text-amber-300 font-semibold">{eventDisplay.title}</div>
+        <div data-testid="phase-label">{eventDisplay.baccarat ? `Round ${state.roundNo}${state.roundLimit ? ` / ${state.roundLimit}` : ''} · ${PHASE_LABEL[state.phase]}` : eventDisplay.eyebrow}</div>
       </div>
       <div className="text-right">
         <div className="text-zinc-200 font-medium">{state.me ? formatKRW(state.me.chips) : ''}</div>
@@ -271,6 +272,8 @@ function BettingPhase({ state, me }: { state: TableState; me: NonNullable<TableS
       locked={state.phase !== 'betting-wait'}
       betLimits={state.betLimits}
       payoutMode={state.payoutMode}
+      bigRoad={state.bigRoad}
+      unlimited={state.isFinalRound}
       onPlaceBet={placeBet}
       onClearBet={clearBet}
       onConfirm={confirmBets}

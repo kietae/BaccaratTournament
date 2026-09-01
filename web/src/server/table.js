@@ -47,7 +47,7 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, mini
   if (limits.sideMax < limits.sideMin) limits.sideMax = limits.sideMin;
   return {
     id: id(),
-    name: name || '바카라 토너먼트',
+    name: name || '2026 CAGE 워크숍',
     initialChips: initialChips > 0 ? initialChips : DEFAULT_INITIAL_CHIPS,
     roundLimit: roundLimit == null ? DEFAULT_ROUND_LIMIT : (roundLimit > 0 ? roundLimit : null),
     bettingSeconds: positiveNumber(bettingSeconds, BETTING_SECONDS),
@@ -71,7 +71,10 @@ function createTournament({ name, initialChips, roundLimit, bettingSeconds, mini
     raffle: { status: 'idle', entries: new Map(), nextNumber: 1, prizes: [], winners: [] },
     rps: { status: 'idle', roundNo: 0, alive: new Set(), choices: new Map(), computerChoice: null, roundWinners: [], winnerId: null },
     teams: [],
-    workshopQuiz: { type: null, status: 'idle', questionIndex: 0, questionOrder: [], submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null },
+    workshopQuiz: { type: null, status: 'idle', questionIndex: 0, questionOrder: [], awardedTeamId: null, gameScores: new Map() },
+    overallGamePoints: new Map(),
+    gamePrizes: {},
+    prizeRecipientIds: new Set(),
     awards: [],
     timers: {}
   };
@@ -96,11 +99,13 @@ function freshRound(roundNo) {
 
 function addPlayer(t, nickname, employeeId) {
   const normalizedEmployeeId = String(employeeId || `INTERNAL-${t.players.size + 1}`).trim().slice(0, 20);
+  const normalizedNickname = String(nickname || '').trim().slice(0, 20) || '플레이어';
   if ([...t.players.values()].some((p) => p.employeeId === normalizedEmployeeId)) throw new GameError('이미 참가한 사번입니다');
+  if ([...t.players.values()].some((p) => p.nickname.toLocaleLowerCase('ko-KR') === normalizedNickname.toLocaleLowerCase('ko-KR'))) throw new GameError('이미 사용 중인 참가자 이름입니다');
   const player = {
     id: id(),
     token: token(),
-    nickname: String(nickname || '').trim().slice(0, 20) || '플레이어',
+    nickname: normalizedNickname,
     employeeId: normalizedEmployeeId,
     chips: t.initialChips,
     connected: false,
@@ -108,6 +113,22 @@ function addPlayer(t, nickname, employeeId) {
     joinedAt: Date.now()
   };
   t.players.set(player.id, player);
+  t.tokenIndex.set(player.token, player.id);
+  if (t.teams.length) {
+    const smallest = [...t.teams].sort((a, b) => a.playerIds.length - b.playerIds.length || a.name.localeCompare(b.name, 'ko'))[0];
+    smallest.playerIds.push(player.id);
+  }
+  return player;
+}
+
+function rejoinPlayer(t, nickname, employeeId) {
+  const normalizedEmployeeId = String(employeeId || '').trim().slice(0, 20);
+  const normalizedNickname = String(nickname || '').trim().slice(0, 20);
+  const player = [...t.players.values()].find((entry) => entry.employeeId === normalizedEmployeeId);
+  if (!player) return null;
+  if (player.nickname.toLocaleLowerCase('ko-KR') !== normalizedNickname.toLocaleLowerCase('ko-KR')) throw new GameError('해당 사번에 등록된 참가자 이름과 다릅니다');
+  t.tokenIndex.delete(player.token);
+  player.token = token();
   t.tokenIndex.set(player.token, player.id);
   return player;
 }
@@ -130,8 +151,9 @@ function assignTeams(t, requestedTeamCount) {
     ? Math.min(parsedCount, playerIds.length)
     : recommendedCount;
   t.teams = Array.from({ length: teamCount }, (_, index) => ({ id: id(), name: `${index + 1}조`, playerIds: [], score: 0 }));
+  t.overallGamePoints = new Map();
   playerIds.forEach((playerId, index) => t.teams[index % teamCount].playerIds.push(playerId));
-  t.workshopQuiz = { type: null, status: 'idle', questionIndex: 0, questionOrder: [], submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
+  t.workshopQuiz = { type: null, status: 'idle', questionIndex: 0, questionOrder: [], awardedTeamId: null, gameScores: new Map() };
   return t.teams;
 }
 
@@ -139,14 +161,21 @@ function startWorkshopQuiz(t, type) {
   if (t.status === 'active') throw new GameError('바카라 진행 중에는 워크숍 퀴즈를 시작할 수 없습니다');
   if (!QUIZZES[type]) throw new GameError('지원하지 않는 워크숍 퀴즈입니다');
   if (!t.teams.length) assignTeams(t);
-  const shuffledQuestions = shuffle(QUIZZES[type].questions.map((_, index) => index));
+  const shuffledQuestions = shuffle((QUIZZES[type].questions || []).map((_, index) => index));
   const questionOrder = type === 'ox' ? shuffledQuestions : shuffledQuestions.slice(0, 10);
-  t.workshopQuiz = { type, status: 'question', questionIndex: 0, questionOrder, submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
+  t.workshopQuiz = { type, status: 'instructions', questionIndex: 0, questionOrder, awardedTeamId: null, gameScores: new Map(t.teams.map((team) => [team.id, 0])) };
   return t.workshopQuiz;
 }
 
+function beginWorkshopGame(t) {
+  const quiz = t.workshopQuiz;
+  if (quiz.status !== 'instructions') throw new GameError('시작할 게임 설명 화면이 없습니다');
+  quiz.status = QUIZZES[quiz.type].mode === 'offline' ? 'scoring' : 'question';
+  return quiz;
+}
+
 function resetWorkshopQuiz(t) {
-  t.workshopQuiz = { type: null, status: 'idle', questionIndex: 0, questionOrder: [], submissions: new Map(), scoredQuestions: new Set(), awardedTeamId: null };
+  t.workshopQuiz = { type: null, status: 'idle', questionIndex: 0, questionOrder: [], awardedTeamId: null, gameScores: new Map() };
   return t.workshopQuiz;
 }
 
@@ -164,8 +193,9 @@ function awardWorkshopPoint(t, teamId) {
   if (!team) throw new GameError('조를 찾을 수 없습니다');
   if (quiz.awardedTeamId === teamId) return quiz;
   const previous = t.teams.find((entry) => entry.id === quiz.awardedTeamId);
-  if (previous) previous.score = Math.max(0, previous.score - 1);
+  if (previous) { previous.score = Math.max(0, previous.score - 1); quiz.gameScores.set(previous.id, Math.max(0, (quiz.gameScores.get(previous.id) || 0) - 1)); }
   team.score += 1;
+  quiz.gameScores.set(team.id, (quiz.gameScores.get(team.id) || 0) + 1);
   quiz.awardedTeamId = teamId;
   return quiz;
 }
@@ -175,22 +205,132 @@ function nextWorkshopQuestion(t) {
   if (quiz.status !== 'revealed') throw new GameError('정답을 먼저 공개해 주세요');
   if (quiz.questionIndex >= quiz.questionOrder.length - 1) {
     quiz.status = 'finished';
+    applyWorkshopPrizes(t);
     return quiz;
   }
   quiz.questionIndex += 1;
   quiz.status = 'question';
-  quiz.submissions = new Map();
   quiz.awardedTeamId = null;
   return quiz;
 }
 
 function finishWorkshopQuiz(t) {
   const quiz = t.workshopQuiz;
-  if (quiz.type !== 'ox' || (quiz.status !== 'question' && quiz.status !== 'revealed')) {
-    throw new GameError('진행 중인 OX 퀴즈가 없습니다');
-  }
+  if (!quiz.type || !['question', 'revealed', 'scoring'].includes(quiz.status)) throw new GameError('진행 중인 워크숍 게임이 없습니다');
   quiz.status = 'finished';
+  applyWorkshopPrizes(t);
   return quiz;
+}
+
+function setWorkshopTeamScore(t, teamId, value) {
+  if (t.workshopQuiz.status !== 'scoring') throw new GameError('현재 점수를 입력할 수 없습니다');
+  if (!t.teams.some((team) => team.id === teamId)) throw new GameError('조를 찾을 수 없습니다');
+  const score = Math.max(0, Math.floor(Number(value) || 0));
+  const previous = t.workshopQuiz.gameScores.get(teamId) || 0;
+  t.workshopQuiz.gameScores.set(teamId, score);
+  const team = t.teams.find((entry) => entry.id === teamId);
+  team.score = Math.max(0, team.score + score - previous);
+  return score;
+}
+
+function movePlayerToTeam(t, playerId, teamId) {
+  const target = t.teams.find((team) => team.id === teamId);
+  if (!target || !t.players.has(playerId)) throw new GameError('참가자 또는 조를 찾을 수 없습니다');
+  for (const team of t.teams) team.playerIds = team.playerIds.filter((id) => id !== playerId);
+  target.playerIds.push(playerId);
+  return target;
+}
+
+function setGamePrizes(t, type, prizes) {
+  if (!QUIZZES[type]) throw new GameError('지원하지 않는 게임입니다');
+  t.gamePrizes[type] = [0, 1, 2].map((index) => String(prizes?.[index] || '').trim().slice(0, 60));
+  return t.gamePrizes[type];
+}
+
+function applyWorkshopPrizes(t) {
+  const quiz = t.workshopQuiz;
+  if (quiz.type === 'ox') return;
+  const prizes = t.gamePrizes[quiz.type] || [];
+  const ranked = [...t.teams].sort((a, b) => (quiz.gameScores.get(b.id) || 0) - (quiz.gameScores.get(a.id) || 0) || a.name.localeCompare(b.name, 'ko')).slice(0, 3);
+  t.overallGamePoints.set(quiz.type, new Map(ranked.map((team, index) => [team.id, 3 - index])));
+  ranked.forEach((team, index) => {
+    const prizeName = prizes[index];
+    if (!prizeName) return;
+    team.playerIds.forEach((playerId) => t.prizeRecipientIds.add(playerId));
+    t.awards.push({ category: `workshop:${quiz.type}:${index + 1}`, title: `${QUIZZES[quiz.type].title} ${index + 1}등 · ${prizeName}`, teamId: team.id, nickname: team.name, employeeId: '', at: Date.now() });
+  });
+}
+
+function setWorkshopPlayerWinners(t, playerIds) {
+  const quiz = t.workshopQuiz;
+  if (quiz.type !== 'ox' || quiz.status !== 'finished') throw new GameError('OX 퀴즈 종료 후 순위를 등록해 주세요');
+  const ids = [...new Set((playerIds || []).filter((playerId) => t.players.has(playerId)))].slice(0, 3);
+  if (!ids.length) throw new GameError('수상자를 한 명 이상 선택해 주세요');
+  t.awards = t.awards.filter((award) => !String(award.category).startsWith('workshop:ox:'));
+  quiz.winnerPlayerIds = ids;
+  const points = new Map();
+  ids.forEach((playerId, index) => {
+    const team = t.teams.find((entry) => entry.playerIds.includes(playerId));
+    if (team) points.set(team.id, Math.max(points.get(team.id) || 0, 3 - index));
+  });
+  t.overallGamePoints.set('ox', points);
+  const prizes = t.gamePrizes.ox || [];
+  ids.forEach((playerId, index) => {
+    const player = t.players.get(playerId);
+    t.prizeRecipientIds.add(playerId);
+    t.awards.push({ category: `workshop:ox:${index + 1}`, title: `OX 퀴즈 ${index + 1}등${prizes[index] ? ` · ${prizes[index]}` : ''}`, playerId, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
+  });
+  return ids;
+}
+
+function registerGiftRecipient(t, gameType, playerId, giftName) {
+  const player = t.players.get(playerId);
+  if (!player) throw new GameError('선물을 받은 참가자를 선택해 주세요');
+  const category = String(gameType || 'other').trim().slice(0, 30);
+  const gift = String(giftName || '').trim().slice(0, 60);
+  if (!gift) throw new GameError('선물명을 입력해 주세요');
+  t.prizeRecipientIds.add(playerId);
+  const award = { category: `gift:${category}:${id()}`, title: `${category} · ${gift}`, playerId, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() };
+  t.awards.push(award);
+  rebuildPrizeRecipientIds(t);
+  return award;
+}
+
+function rebuildPrizeRecipientIds(t) {
+  const recipients = new Set();
+  for (const award of t.awards) {
+    if (award.playerId && t.players.has(award.playerId)) recipients.add(award.playerId);
+    if (award.teamId) {
+      const team = t.teams.find((entry) => entry.id === award.teamId);
+      team?.playerIds.forEach((playerId) => recipients.add(playerId));
+    }
+  }
+  t.prizeRecipientIds = recipients;
+  return recipients;
+}
+
+function updateGiftRecipient(t, awardCategory, gameType, playerId, giftName) {
+  const award = t.awards.find((entry) => entry.category === awardCategory && String(entry.category).startsWith('gift:'));
+  const player = t.players.get(playerId);
+  if (!award) throw new GameError('수정할 선물 기록을 찾을 수 없습니다');
+  if (!player) throw new GameError('선물을 받은 참가자를 선택해 주세요');
+  const category = String(gameType || '기타').trim().slice(0, 30);
+  const gift = String(giftName || '').trim().slice(0, 60);
+  if (!gift) throw new GameError('선물명을 입력해 주세요');
+  award.title = `${category} · ${gift}`;
+  award.playerId = player.id;
+  award.nickname = player.nickname;
+  award.employeeId = player.employeeId;
+  rebuildPrizeRecipientIds(t);
+  return award;
+}
+
+function deleteGiftRecipient(t, awardCategory) {
+  const index = t.awards.findIndex((entry) => entry.category === awardCategory && String(entry.category).startsWith('gift:'));
+  if (index < 0) throw new GameError('삭제할 선물 기록을 찾을 수 없습니다');
+  const [removed] = t.awards.splice(index, 1);
+  rebuildPrizeRecipientIds(t);
+  return removed;
 }
 
 function playerByToken(t, tok) {
@@ -225,8 +365,9 @@ function placeBet(t, playerId, type, amount) {
   const player = t.players.get(playerId);
   if (!player) throw new GameError('참가자를 찾을 수 없습니다');
   const isMain = type === 'player' || type === 'banker';
-  const min = isMain ? t.betLimits.mainMin : t.betLimits.sideMin;
-  const max = isMain ? t.betLimits.mainMax : t.betLimits.sideMax;
+  const finalRound = t.roundLimit != null && t.roundNo === t.roundLimit;
+  const min = finalRound ? 1 : (isMain ? t.betLimits.mainMin : t.betLimits.sideMin);
+  const max = finalRound ? player.chips : (isMain ? t.betLimits.mainMax : t.betLimits.sideMax);
   if (amt > 0 && amt < min) throw new GameError(`최소 베팅금액은 ${min.toLocaleString('ko-KR')}원입니다`);
   if (amt > max) throw new GameError(`최대 베팅금액은 ${max.toLocaleString('ko-KR')}원입니다`);
 
@@ -682,6 +823,7 @@ function excludeDisconnectedGroupRpsPlayers(t) {
     t.rps.winnerId = playerId;
     t.rps.status = 'finished';
     if (!t.awards.some((award) => award.category === 'mini:group-rps')) {
+      t.prizeRecipientIds.add(playerId);
       t.awards.push({ category: 'mini:group-rps', title: '단체 가위바위보 우승', playerId, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
     }
   } else if ([...t.rps.alive].every((playerId) => t.rps.choices.has(playerId))) {
@@ -703,6 +845,7 @@ function resolveGroupRpsRound(t) {
     const player = t.players.get(playerId);
     t.rps.winnerId = playerId;
     if (!t.awards.some((award) => award.category === 'mini:group-rps')) {
+      t.prizeRecipientIds.add(playerId);
       t.awards.push({ category: 'mini:group-rps', title: '단체 가위바위보 우승', playerId, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
     }
   }
@@ -767,6 +910,7 @@ function revealMiniGame(t) {
   t.miniGame = { ...t.miniGame, status: 'revealed', average, target, results, endsAt: null };
   const winner = results.find((entry) => entry.rank === 1);
   if (winner && !t.awards.some((award) => award.category === `mini:${t.miniGame.type}`)) {
+    t.prizeRecipientIds.add(winner.playerId);
     t.awards.push({ category: `mini:${t.miniGame.type}`, title: t.miniGame.type === 'lowest-unique' ? '눈치 게임 우승' : '2/3 맞추기 우승', playerId: winner.playerId, nickname: winner.nickname, employeeId: t.players.get(winner.playerId)?.employeeId || '', at: Date.now() });
   }
   return t.miniGame;
@@ -795,15 +939,16 @@ function resetRaffle(t) {
 }
 
 function drawRaffleWinner(t) {
-  const wonIds = new Set(t.raffle.winners.map((winner) => winner.playerId));
-  const candidates = [...t.raffle.entries.entries()].filter(([playerId]) => !wonIds.has(playerId));
+  const candidates = [...t.players.values()].filter((player) => player.connected && !t.prizeRecipientIds.has(player.id));
   const prize = t.raffle.prizes[t.raffle.winners.length];
   if (!prize) throw new GameError('추첨할 경품이 없습니다');
   if (!candidates.length) throw new GameError('남은 추첨 참가자가 없습니다');
-  const [playerId, number] = candidates[crypto.randomInt(candidates.length)];
-  const player = t.players.get(playerId);
+  const player = candidates[crypto.randomInt(candidates.length)];
+  const playerId = player.id;
+  const number = [...t.players.values()].filter((entry) => entry.connected && !t.prizeRecipientIds.has(entry.id)).findIndex((entry) => entry.id === playerId) + 1;
   const winner = { prizeId: prize.id, prizeName: prize.name, playerId, number, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() };
   t.raffle.winners.push(winner);
+  t.prizeRecipientIds.add(playerId);
   if (t.raffle.winners.length >= t.raffle.prizes.length) t.raffle.status = 'finished';
   t.awards.push({ category: `raffle:${prize.id}`, title: `경품 당첨 · ${prize.name}`, playerId, nickname: player.nickname, employeeId: player.employeeId, at: winner.at });
   return winner;
@@ -812,6 +957,7 @@ function drawRaffleWinner(t) {
 function recordTournamentAwards(t) {
   if (t.awards.some((award) => award.category === 'baccarat:1')) return;
   [...t.players.values()].sort((a, b) => b.chips - a.chips || a.joinedAt - b.joinedAt).slice(0, 3).forEach((player, index) => {
+    t.prizeRecipientIds.add(player.id);
     t.awards.push({ category: `baccarat:${index + 1}`, title: `바카라 대회 ${index + 1}등`, playerId: player.id, nickname: player.nickname, employeeId: player.employeeId, at: Date.now() });
   });
 }
@@ -819,12 +965,12 @@ function recordTournamentAwards(t) {
 module.exports = {
   BETTING_SECONDS, NEXT_ROUND_SECONDS, DEFAULT_INITIAL_CHIPS, DEFAULT_BET_LIMITS,
   GameError,
-  createTournament, addPlayer, playerByToken,
+  createTournament, addPlayer, rejoinPlayer, playerByToken,
   placeBet, confirmBets, allActivePlayersConfirmed,
   beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard, completeDealerCall,
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
   bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
   startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, excludeDisconnectedGroupRpsPlayers, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal, returnToGameSelection
-  , assignTeams, startWorkshopQuiz, revealWorkshopAnswer, awardWorkshopPoint, nextWorkshopQuestion, finishWorkshopQuiz, resetWorkshopQuiz
+  , assignTeams, movePlayerToTeam, startWorkshopQuiz, beginWorkshopGame, revealWorkshopAnswer, awardWorkshopPoint, setWorkshopTeamScore, setGamePrizes, setWorkshopPlayerWinners, registerGiftRecipient, updateGiftRecipient, deleteGiftRecipient, nextWorkshopQuestion, finishWorkshopQuiz, resetWorkshopQuiz
 };

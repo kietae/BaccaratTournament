@@ -325,12 +325,15 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // corner index while squeezing a physical baccarat card. It is drawn
       // last so it genuinely occludes the bent face in both local and remote
       // (projector) views.
-      const thumbLength = clamp(Math.min(width, height) * 0.31, 55, 76);
-      const thumbWidth = thumbLength * 0.92;
+      // Keep the exact same card-relative hand size on phones, the admin
+      // monitor, and the broadcast screen. A fixed pixel cap made the hands
+      // proportionally smaller as the projected card grew.
+      const thumbLength = Math.min(width, height) * 0.58;
+      const thumbWidth = thumbLength * 1.08;
       // On a short edge the thumbs spread toward the outer corners. On a long
       // edge they sit farther inward, over the vertically inset card indices.
       const cornerInset = LONG_EDGES.has(edge)
-        ? clamp(tangentSize * 0.18, thumbWidth * 0.9, tangentSize * 0.24)
+        ? clamp(tangentSize * 0.095, thumbWidth * 0.5, tangentSize * 0.14)
         : clamp(tangentSize * 0.1, thumbWidth * 0.52, tangentSize * 0.14);
 
       // The local controller also needs the virtual fingers: without them the
@@ -342,7 +345,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         // Keep the thumb pad on the flap itself, between the crease and the
         // moving edge. Bias toward the edge so it still covers the index.
         const tipDepth = pull * FLAP_TIP_SCALE;
-        const thumbDepth = foldDepth + (tipDepth - foldDepth) * 0.72;
+        const thumbDepth = foldDepth + (tipDepth - foldDepth) * (LONG_EDGES.has(edge) ? 1.2 : 1.02);
         const thumbTip = edge === 'left' ? { x: thumbDepth, y: tangent }
           : edge === 'right' ? { x: width - thumbDepth, y: tangent }
             : edge === 'top' ? { x: tangent, y: thumbDepth }
@@ -350,6 +353,13 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         ctx.save();
         ctx.translate(thumbTip.x, thumbTip.y);
         ctx.rotate(thumbAngle);
+        // An opaque thumb pad beneath the photographic sprite guarantees
+        // that transparent pixels around the image cannot expose the corner
+        // rank on a large remote canvas.
+        ctx.fillStyle = '#d69a78';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, thumbLength * 0.62, thumbWidth * 0.61, 0, 0, Math.PI * 2);
+        ctx.fill();
         if (thumbImage.complete && thumbImage.naturalWidth > 0) {
           ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
           ctx.shadowBlur = 7;
@@ -359,10 +369,10 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
           ctx.drawImage(
             thumbImage,
             260, 150, 1276, 740,
-            -thumbLength * 0.86,
-            -thumbWidth * 0.66,
-            thumbLength * 1.32,
-            thumbWidth * 1.32
+            -thumbLength * 0.94,
+            -thumbWidth * 0.72,
+            thumbLength * 1.48,
+            thumbWidth * 1.44
           );
           ctx.restore();
           return;

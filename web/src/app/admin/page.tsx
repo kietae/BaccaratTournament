@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import Image from 'next/image';
 import { ack, getSocket, ADMIN_TOKEN_KEY } from '@/lib/socket';
 import type { CardView, PayoutMode, TableState } from '@/lib/types';
 import { formatKRW } from '@/lib/chips';
@@ -14,6 +15,8 @@ import KeynesMiniGame, { MiniGameRules } from '@/components/KeynesMiniGame';
 import PrizeDraw from '@/components/PrizeDraw';
 import GroupRpsGame from '@/components/GroupRpsGame';
 import WorkshopQuizGame from '@/components/WorkshopQuizGame';
+import TeamOverallLeaderboard from '@/components/TeamOverallLeaderboard';
+import { currentEventDisplay } from '@/lib/eventDisplay';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
   'road-seeding': '초기 게임 진행',
@@ -29,8 +32,10 @@ export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [setupView, setSetupView] = useState<'menu' | 'options'>('menu');
+  const [useBroadcastScreen, setUseBroadcastScreen] = useState(false);
+  const [giftRegistryOpen, setGiftRegistryOpen] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
-  const [name, setName] = useState('바카라 토너먼트');
+  const [name, setName] = useState('2026 CAGE 워크숍');
   const [initialChips, setInitialChips] = useState(30_000_000);
   const [roundLimit, setRoundLimit] = useState(7);
   const [bettingSeconds, setBettingSeconds] = useState(30);
@@ -142,11 +147,13 @@ export default function AdminPage() {
 
   async function createTournament() {
     setError(null);
+    const broadcastWindow = useBroadcastScreen ? window.open('', 'cage-broadcast-screen') : null;
     const res = await ack<{ ok: boolean; error?: string; adminToken?: string }>('admin:create', { name, initialChips, roundLimit: roundLimit > 0 ? roundLimit : null, bettingSeconds, miniGameSeconds, initialRoadGames, payoutMode, betLimits: { mainMin, mainMax, sideMin, sideMax } });
-    if (!res.ok || !res.adminToken) { setError(res.error || '생성 실패'); return; }
+    if (!res.ok || !res.adminToken) { broadcastWindow?.close(); setError(res.error || '생성 실패'); return; }
     localStorage.setItem(ADMIN_TOKEN_KEY, res.adminToken);
     tokenRef.current = res.adminToken;
     setAdminToken(res.adminToken);
+    if (broadcastWindow) broadcastWindow.location.href='/screen';
   }
 
   async function startTournament() {
@@ -193,6 +200,8 @@ export default function AdminPage() {
       || state.rps.status === 'round-result'
       || state.workshopQuiz.status === 'question'
       || state.workshopQuiz.status === 'revealed'
+      || state.workshopQuiz.status === 'instructions'
+      || state.workshopQuiz.status === 'scoring'
       || state.raffle.status === 'collecting';
     if (gameInProgress && !window.confirm('현재 진행 중인 게임을 종료하고 게임 선택 화면으로 돌아갈까요?')) return;
     setError(null);
@@ -224,7 +233,7 @@ export default function AdminPage() {
   );
   if (!adminToken || !state) return (
     <main className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-      {setupView === 'menu' ? <div className="w-full max-w-2xl text-center"><p className="text-xs font-bold tracking-[.3em] text-amber-400">ADMIN CONSOLE</p><h1 className="mt-3 text-4xl font-black text-white">행사 관리</h1><p className="mt-2 text-zinc-400">게임 옵션을 확인한 뒤 참가 접수를 시작하세요.</p><div className="mt-8 grid gap-4 sm:grid-cols-2"><button onClick={() => setSetupView('options')} className="rounded-3xl border border-violet-400/30 bg-violet-400/10 p-8 text-left transition hover:bg-violet-400/20"><span className="text-4xl">⚙️</span><h2 className="mt-4 text-2xl font-black text-white">옵션 변경</h2><p className="mt-2 text-sm text-zinc-400">바카라 칩, 라운드, 베팅 시간과 한도를 설정합니다.</p></button><button onClick={createTournament} className="rounded-3xl border border-amber-400/30 bg-amber-400/10 p-8 text-left transition hover:bg-amber-400/20"><span className="text-4xl">🎪</span><h2 className="mt-4 text-2xl font-black text-white">참가 접수 시작</h2><p className="mt-2 text-sm text-zinc-400">입장 코드와 QR을 만들고 행사 게임을 선택합니다.</p></button></div>{error && <p className="mt-4 text-sm text-red-300">{error}</p>}</div> : <>
+      {setupView === 'menu' ? <div className="w-full max-w-4xl text-center"><p className="text-xs font-bold tracking-[.3em] text-amber-400">ADMIN CONSOLE</p><h1 className="mt-3 text-4xl font-black text-white">행사 관리</h1><p className="mt-2 text-zinc-400">옵션을 확인한 뒤 참가 접수를 시작하세요. 선물 수령 기록은 참가자가 접수된 뒤 등록할 수 있습니다.</p><div className="mt-6 flex items-center justify-between rounded-2xl border border-cyan-400/25 bg-cyan-400/10 p-4 text-left"><div><b className="text-cyan-100">중계용 대형 스크린</b><p className="text-sm text-zinc-400">연결된 보조 모니터나 프로젝터에 관객용 화면을 새 창으로 엽니다.</p></div><button type="button" onClick={()=>setUseBroadcastScreen((value)=>!value)} className={`rounded-xl px-5 py-3 font-black ${useBroadcastScreen?'bg-cyan-300 text-cyan-950':'bg-zinc-800 text-zinc-300'}`}>{useBroadcastScreen?'사용함':'사용 안 함'}</button></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><button onClick={() => setSetupView('options')} className="rounded-3xl border border-violet-400/30 bg-violet-400/10 p-7 text-left transition hover:bg-violet-400/20"><span className="text-4xl">⚙️</span><h2 className="mt-4 text-2xl font-black text-white">옵션 변경</h2><p className="mt-2 text-sm text-zinc-400">칩, 라운드, 시간과 베팅 한도를 설정합니다.</p></button><button onClick={createTournament} className="rounded-3xl border border-amber-400/30 bg-amber-400/10 p-7 text-left transition hover:bg-amber-400/20"><span className="text-4xl">🎪</span><h2 className="mt-4 text-2xl font-black text-white">참가 접수 시작</h2><p className="mt-2 text-sm text-zinc-400">입장 코드와 QR을 만들고 행사를 시작합니다.</p></button></div>{error && <p className="mt-4 text-sm text-red-300">{error}</p>}</div> : <>
       <div className="text-center"><p className="text-xs tracking-[0.28em] text-amber-500 uppercase">Game Settings</p><h1 className="mt-2 text-2xl font-bold text-amber-200">게임 옵션 변경</h1></div>
       <div className="flex flex-col gap-3 w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
         <Field label="이름"><input value={name} onChange={(e) => setName(e.target.value)} className="admin-input" /></Field>
@@ -253,13 +262,31 @@ export default function AdminPage() {
   );
 
   const roundsRemaining = state.roundLimit == null ? null : Math.max(0, state.roundLimit - state.roundNo);
+  const eventDisplay = currentEventDisplay(state);
   return <main className={`flex-1 w-full mx-auto p-3 lg:p-4 ${state.status === 'active' ? 'h-[100dvh] overflow-hidden flex flex-col' : ''} ${presentation ? 'max-w-none' : 'max-w-7xl'}`}>
-    <header className="flex items-center justify-between gap-4 border-b border-amber-500/20 pb-2 mb-3 shrink-0">
-      <div><p className="text-xs tracking-[0.24em] text-amber-500 uppercase">Live Tournament</p><h1 className="text-xl lg:text-3xl font-bold text-amber-100">{state.tournamentName}</h1></div>
-      <div className="flex items-center gap-2"><div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '토너먼트 종료' : PHASE_LABEL[state.phase]}</div></div><button data-testid="return-to-game-selection" onClick={returnToGameSelection} className="rounded-lg border border-amber-500/50 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/20">게임 선택</button><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
+    <header className="relative flex min-h-28 items-center justify-between gap-4 border-b border-amber-500/20 pb-2 mb-3 pr-36 shrink-0">
+      {qr && <Image src={qr} alt="상시 참가 QR" width={128} height={128} unoptimized className="absolute right-0 top-0 h-28 w-28 rounded-xl bg-white p-1.5" />}
+      <div><p className="text-xs tracking-[0.24em] text-amber-500 uppercase">{eventDisplay.eyebrow}</p><h1 className="text-xl lg:text-3xl font-bold text-amber-100">{eventDisplay.title}</h1></div>
+      <div className="flex items-center gap-2">{eventDisplay.baccarat&&<div className="text-right"><div className="font-mono text-amber-300">현재 {state.roundNo}판{roundsRemaining == null ? '' : ` · 남은 ${roundsRemaining}판`}</div><div data-testid="admin-phase" className="text-sm text-zinc-400">{state.status === 'finished' ? '바카라 종료' : PHASE_LABEL[state.phase]}</div></div>}<button onClick={()=>setGiftRegistryOpen(true)} className="rounded-lg border border-emerald-500/50 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200">선물 수령 등록</button><button data-testid="return-to-game-selection" onClick={returnToGameSelection} className="rounded-lg border border-amber-500/50 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/20">게임 선택</button><button onClick={()=>window.open('/screen','cage-broadcast-screen')} className="rounded-lg border border-cyan-500/50 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-200">중계 화면 열기</button><button onClick={togglePresentation} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:border-amber-500/60">{presentation ? '전체화면 종료' : '전체화면'}</button></div>
     </header>
     {state.status !== 'active' && (state.status === 'lobby' || state.miniGame.status !== 'idle' || state.rps.status !== 'idle' || state.workshopQuiz.status !== 'idle') ? <Lobby state={state} qr={qr} adminToken={adminToken} onStart={startTournament} onStartMiniGame={startMiniGame} onRevealMiniGame={revealMiniGame} error={error} /> : state.status === 'finished' ? <div className="flex flex-col gap-5"><FinalLeaderboard state={state} onPrepareNew={prepareNewTournament} error={error} /><GameSelectionActions state={state} onStart={startTournament} onStartMiniGame={startMiniGame} /><WorkshopQuizGame state={state} adminToken={adminToken} /><PrizeDraw state={state} adminToken={adminToken} /></div> : <LiveDashboard state={state} />}
+    <TeamOverallLeaderboard state={state} floating />
+    {giftRegistryOpen && <GiftRegistry state={state} adminToken={adminToken} onClose={()=>setGiftRegistryOpen(false)} />}
   </main>;
+}
+
+function GiftRegistry({state,adminToken,onClose}:{state:TableState;adminToken:string;onClose:()=>void}){
+  const [gameType,setGameType]=useState('초성 퀴즈');
+  const [playerId,setPlayerId]=useState('');
+  const [giftName,setGiftName]=useState('');
+  const [editingCategory,setEditingCategory]=useState<string|null>(null);
+  const [message,setMessage]=useState<string|null>(null);
+  const giftAwards=state.awards.filter((award)=>award.category.startsWith('gift:'));
+  function clearForm(){setEditingCategory(null);setPlayerId('');setGiftName('');setGameType('초성 퀴즈');}
+  async function save(){const event=editingCategory?'admin:updateGiftRecipient':'admin:registerGiftRecipient';const result=await ack<{ok:boolean;error?:string}>(event,{adminToken,awardCategory:editingCategory,gameType,playerId,giftName});if(result.ok){clearForm();setMessage(editingCategory?'선물 수령 기록을 수정했습니다.':'선물 수령을 기록했습니다. 해당 참가자는 추첨 대상에서 제외됩니다.');}else setMessage(result.error||'저장하지 못했습니다');}
+  function edit(award:TableState['awards'][number]){const [category,...giftParts]=award.title.split(' · ');setEditingCategory(award.category);setGameType(category||'기타');setGiftName(giftParts.join(' · '));setPlayerId(award.playerId);setMessage(null);}
+  async function remove(category:string){if(!window.confirm('이 선물 수령 기록을 삭제할까요? 다른 수령 기록이 없다면 해당 참가자는 다시 추첨 대상이 됩니다.'))return;const result=await ack<{ok:boolean;error?:string}>('admin:deleteGiftRecipient',{adminToken,awardCategory:category});if(result.ok){if(editingCategory===category)clearForm();setMessage('선물 수령 기록을 삭제했습니다.');}else setMessage(result.error||'삭제하지 못했습니다');}
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"><section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-emerald-300/30 bg-zinc-950 p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-bold tracking-[.25em] text-emerald-300">GIFT RECIPIENTS</p><h2 className="mt-2 text-3xl font-black text-white">선물 수령 등록</h2><p className="mt-2 text-sm text-zinc-400">등록된 참가자는 이후 모든 경품 추첨에서 자동 제외됩니다.</p></div><button onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2 text-zinc-300">닫기</button></div><div className={`mt-6 rounded-2xl p-4 ${editingCategory?'border border-amber-300/30 bg-amber-300/5':'bg-white/[.03]'}`}><p className="mb-3 text-sm font-black text-white">{editingCategory?'선물 기록 수정':'새 선물 수령 등록'}</p><div className="grid gap-3 sm:grid-cols-3"><label className="text-sm text-zinc-400">게임 종류<select value={gameType} onChange={(event)=>setGameType(event.target.value)} className="admin-input mt-1 w-full">{['초성 퀴즈','OX 퀴즈','눈·코·입','브랜드 맞추기','버텨줘! 스파이더맨','찰싹 머니헌터','바카라 토너먼트','2/3 맞추기','눈치 게임','가위바위보','기타'].map((name)=><option key={name}>{name}</option>)}</select></label><label className="text-sm text-zinc-400">받은 사람<select value={playerId} onChange={(event)=>setPlayerId(event.target.value)} className="admin-input mt-1 w-full"><option value="">참가자 선택</option>{[...state.players].sort((a,b)=>a.nickname.localeCompare(b.nickname,'ko')).map((player)=><option key={player.id} value={player.id}>{player.nickname} ({player.employeeId})</option>)}</select></label><label className="text-sm text-zinc-400">선물명<input value={giftName} onChange={(event)=>setGiftName(event.target.value)} placeholder="선물 이름" className="admin-input mt-1 w-full" /></label></div><div className="mt-4 flex gap-2"><button disabled={!playerId||!giftName.trim()} onClick={save} className="flex-1 rounded-xl bg-emerald-300 py-3 font-black text-emerald-950 disabled:opacity-40">{editingCategory?'수정 저장':'수령 기록 등록'}</button>{editingCategory&&<button onClick={clearForm} className="rounded-xl border border-zinc-600 px-5 font-bold text-zinc-300">수정 취소</button>}</div></div>{message&&<p className="mt-3 text-center text-sm text-emerald-200">{message}</p>}<div className="mt-6"><h3 className="font-black text-white">등록 내역 {giftAwards.length}건</h3><div className="mt-2 max-h-64 space-y-2 overflow-y-auto">{[...giftAwards].reverse().map((award)=><div key={award.category} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-white/5 px-4 py-2"><div><span className="font-bold text-white">{award.nickname}</span><span className="ml-3 text-sm text-zinc-300">{award.title}</span></div><div className="flex gap-1"><button onClick={()=>edit(award)} className="rounded-lg bg-amber-300/15 px-3 py-1.5 text-xs font-bold text-amber-200">수정</button><button onClick={()=>remove(award.category)} className="rounded-lg bg-red-400/15 px-3 py-1.5 text-xs font-bold text-red-200">삭제</button></div></div>)}{!giftAwards.length&&<p className="rounded-xl bg-white/5 p-4 text-center text-zinc-500">아직 등록된 수령자가 없습니다.</p>}</div></div></section></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="flex flex-col gap-1 text-sm text-zinc-400">{label}{children}</label>; }
@@ -305,7 +332,7 @@ function LiveDashboard({ state }: { state: TableState }) {
   const mainBets = state.mainBetSummary ?? { player: { bettors: 0, amount: 0 }, banker: { bettors: 0, amount: 0 } };
   return <div className="flex-1 min-h-0 grid grid-rows-[minmax(130px,30vh)_minmax(0,1fr)] gap-3">
     <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-3 min-h-0">
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 min-w-0 overflow-hidden"><div className="flex items-center justify-between gap-3 mb-2"><h2 className="font-semibold text-zinc-200 shrink-0">바카라 매</h2><div className="flex items-center gap-2 text-xs tabular-nums"><span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-blue-200">PLAYER {mainBets.player.bettors}명 · {formatKRW(mainBets.player.amount)}</span><span className="rounded-full border border-red-400/25 bg-red-500/10 px-2.5 py-1 text-red-200">BANKER {mainBets.banker.bettors}명 · {formatKRW(mainBets.banker.amount)}</span><span className="text-zinc-500">총 {formatKRW(state.totalPot)}</span></div></div><BigRoadGrid road={state.bigRoad} /></section>
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 min-w-0 overflow-hidden"><div className="flex items-center justify-between gap-3 mb-2"><h2 className="font-semibold text-zinc-200 shrink-0">바카라 매</h2>{!state.isFinalRound && <div className="flex items-center gap-2 text-xs tabular-nums"><span className="rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-blue-200">PLAYER {mainBets.player.bettors}명 · {formatKRW(mainBets.player.amount)}</span><span className="rounded-full border border-red-400/25 bg-red-500/10 px-2.5 py-1 text-red-200">BANKER {mainBets.banker.bettors}명 · {formatKRW(mainBets.banker.amount)}</span><span className="text-zinc-500">총 {formatKRW(state.totalPot)}</span></div>}</div><BigRoadGrid road={state.bigRoad} /></section>
       <Leaderboard state={state} title="실시간 리더보드" limit={5} hideNames />
     </div>
     <TableStage state={state} activeCard={activeCard} />

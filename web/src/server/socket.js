@@ -24,6 +24,7 @@ let t = null;
 function registerSocketServer(io) {
   const socketPlayer = new Map(); // socket.id -> playerId
   const adminSockets = new Set(); // socket.id
+  const screenSockets = new Set(); // socket.id -> read-only broadcast screen
 
   function broadcastState() {
     if (!t) return;
@@ -31,6 +32,9 @@ function registerSocketServer(io) {
       io.to(socketId).emit('state', buildSnapshot(t, playerId));
     }
     for (const socketId of adminSockets) {
+      io.to(socketId).emit('state', buildSnapshot(t, null));
+    }
+    for (const socketId of screenSockets) {
       io.to(socketId).emit('state', buildSnapshot(t, null));
     }
   }
@@ -176,6 +180,12 @@ function registerSocketServer(io) {
   }
 
   io.on('connection', (socket) => {
+    socket.on('screen:attach', (_payload, ack) => {
+      screenSockets.add(socket.id);
+      if (t) socket.emit('state', buildSnapshot(t, null));
+      ack?.({ ok: true, hasTournament: Boolean(t) });
+    });
+
     let adminAuthenticated = false;
 
     socket.on('admin:login', (payload, ack) => {
@@ -282,12 +292,15 @@ function registerSocketServer(io) {
         return;
       }
       if (!String(payload.employeeId || '').trim()) { ack?.({ ok: false, error: '사번을 입력해 주세요' }); return; }
-      const player = table.addPlayer(t, payload.nickname, payload.employeeId);
-      player.connected = true;
-      player.socketId = socket.id;
-      socketPlayer.set(socket.id, player.id);
-      ack?.({ ok: true, playerId: player.id, token: player.token });
-      broadcastState();
+      try {
+        const player = table.rejoinPlayer(t, payload.nickname, payload.employeeId) || table.addPlayer(t, payload.nickname, payload.employeeId);
+        if (player.socketId && player.socketId !== socket.id) socketPlayer.delete(player.socketId);
+        player.connected = true;
+        player.socketId = socket.id;
+        socketPlayer.set(socket.id, player.id);
+        ack?.({ ok: true, playerId: player.id, token: player.token });
+        broadcastState();
+      } catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
     socket.on('reconnect_player', (payload, ack) => {
@@ -317,9 +330,10 @@ function registerSocketServer(io) {
       const playerId = socketPlayer.get(socket.id);
       if (!t || !playerId) { ack?.({ ok: false, error: '참가 정보가 없습니다' }); return; }
       try {
-        table.confirmBets(t, playerId);
+        const bet = table.confirmBets(t, playerId);
         ack?.({ ok: true });
-        broadcastState();
+        if (bet.confirmed && table.allActivePlayersConfirmed(t)) advanceFromBetting();
+        else broadcastState();
       } catch (e) {
         ack?.({ ok: false, error: e.message });
       }
@@ -360,9 +374,57 @@ function registerSocketServer(io) {
       catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
+    socket.on('admin:movePlayerTeam', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.movePlayerToTeam(t, payload?.playerId, payload?.teamId); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
     socket.on('admin:startWorkshopQuiz', (payload, ack) => {
       if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
       try { table.startWorkshopQuiz(t, payload?.type); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:beginWorkshopGame', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.beginWorkshopGame(t); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:setWorkshopTeamScore', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.setWorkshopTeamScore(t, payload?.teamId, payload?.value); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:setGamePrizes', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.setGamePrizes(t, payload?.type, payload?.prizes); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:setWorkshopPlayerWinners', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.setWorkshopPlayerWinners(t, payload?.playerIds); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:registerGiftRecipient', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.registerGiftRecipient(t, payload?.gameType, payload?.playerId, payload?.giftName); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:updateGiftRecipient', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.updateGiftRecipient(t, payload?.awardCategory, payload?.gameType, payload?.playerId, payload?.giftName); ack?.({ ok: true }); broadcastState(); }
+      catch (e) { ack?.({ ok: false, error: e.message }); }
+    });
+
+    socket.on('admin:deleteGiftRecipient', (payload, ack) => {
+      if (!t || !adminSockets.has(socket.id) || payload?.adminToken !== t.adminToken) { ack?.({ ok: false, error: '권한이 없습니다' }); return; }
+      try { table.deleteGiftRecipient(t, payload?.awardCategory); ack?.({ ok: true }); broadcastState(); }
       catch (e) { ack?.({ ok: false, error: e.message }); }
     });
 
@@ -457,6 +519,7 @@ function registerSocketServer(io) {
     });
 
     socket.on('disconnect', () => {
+      screenSockets.delete(socket.id);
       adminSockets.delete(socket.id);
       const playerId = socketPlayer.get(socket.id);
       if (playerId && t) {

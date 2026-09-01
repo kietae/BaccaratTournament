@@ -88,10 +88,8 @@ export default function PrizeDraw({ state, adminToken }: { state: TableState; ad
   if (!adminToken) return (
     <section id="prize-draw" className="w-full scroll-mt-4 rounded-3xl border border-amber-400/25 bg-[radial-gradient(circle_at_top,#4b2a0b,#100b08_70%)] p-6 text-center">
       <p className="text-xs font-bold tracking-[.3em] text-amber-300">LUCKY DRAW</p>
-      <h2 className="mt-2 text-3xl font-black text-white">경품 추첨 참가</h2>
-      {state.raffle.myNumber == null
-        ? <button onClick={async () => { const result = await ack<{ ok: boolean; error?: string; number?: number }>('raffle:enter', {}); setMessage(result.ok ? `내 추첨 번호는 ${result.number}번입니다` : result.error || '참가하지 못했습니다'); }} className="mt-5 rounded-xl bg-amber-400 px-8 py-4 font-black text-zinc-950">추첨 신청하기</button>
-        : <div className="mx-auto mt-5 flex h-28 w-28 items-center justify-center rounded-full border-4 border-amber-300 bg-black/40 text-5xl font-black text-amber-200">{state.raffle.myNumber}</div>}
+      <h2 className="mt-2 text-3xl font-black text-white">경품 추첨</h2>
+      <p className="mt-5 rounded-xl bg-black/30 p-4 text-amber-100">현재 접속 중이며 아직 경품을 받지 않은 참가자는 자동으로 추첨 대상에 포함됩니다.</p>
       {message && <p className="mt-3 text-sm text-amber-100">{message}</p>}
       {state.raffle.winners.length > 0 && <div className="mt-5 space-y-2">{state.raffle.winners.map((winner) => <div key={winner.prizeId} className="rounded-xl bg-black/30 p-3 text-sm"><b className="text-amber-300">{winner.prizeName}</b> · {winner.number}번 {winner.nickname}</div>)}</div>}
     </section>

@@ -103,6 +103,7 @@ export interface TableState {
   status: 'lobby' | 'active' | 'finished';
   initialChips: number;
   roundLimit: number | null;
+  isFinalRound: boolean;
   bettingSeconds: number;
   miniGameSeconds: number;
   betLimits: { mainMin: number; mainMax: number; sideMin: number; sideMax: number };
@@ -153,19 +154,25 @@ export interface TableState {
     id: string;
     name: string;
     score: number;
+    overallScore: number;
+    gameScore: number;
     members: { playerId: string; nickname: string }[];
   }[];
   workshopQuiz: {
-    type: 'initial' | 'ox' | 'faces' | 'brands' | null;
+    type: 'initial' | 'ox' | 'faces' | 'brands' | 'spiderman' | 'moneyhunter' | null;
     title: string | null;
     input: 'text' | 'ox' | null;
-    status: 'idle' | 'question' | 'revealed' | 'finished';
+    mode: 'quiz' | 'offline' | null;
+    rules: string[];
+    status: 'idle' | 'instructions' | 'question' | 'revealed' | 'scoring' | 'finished';
     questionIndex: number;
     totalQuestions: number;
     question: { category: string; prompt: string; image: string | null; answerImage: string | null; answer: string | null; explanation: string | null } | null;
     myTeamId: string | null;
     awardedTeamId: string | null;
+    winnerPlayerIds: string[];
   };
+  gamePrizes: Partial<Record<'initial' | 'ox' | 'faces' | 'brands' | 'spiderman' | 'moneyhunter', string[]>>;
   awards: { category: string; title: string; playerId: string; nickname: string; employeeId: string; at: number }[];
   roundNo: number;
   phase: Phase;

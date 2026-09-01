@@ -33,7 +33,7 @@ function JoinForm() {
     <main className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
       <div className="text-center">
         <p className="text-xs font-bold tracking-[0.28em] text-amber-500">2026 CAGE WORKSHOP</p>
-        <h1 className="mt-2 text-2xl font-bold text-amber-300">토너먼트 참가</h1>
+        <h1 className="mt-2 text-2xl font-bold text-amber-300">워크숍 행사 참가</h1>
         <p className="mt-2 text-sm text-zinc-400">아래 정보를 모두 입력해 주세요.</p>
       </div>
       <form onSubmit={submit} className="flex w-full max-w-xs flex-col gap-4">

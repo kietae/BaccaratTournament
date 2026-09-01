@@ -5,20 +5,27 @@ import { BET_TYPES } from '@/lib/betTypes';
 import { CHIP_DENOMS, formatKRW } from '@/lib/chips';
 import ChipStack from './ChipStack';
 import type { BetType, MeView, TableState } from '@/lib/types';
+import BigRoadGrid from './BigRoadGrid';
 
 const PLAYER_OPTIONS: BetType[] = ['playerPair', 'player7TwoCard', 'player7ThreeCard', 'comboP7B6'];
 const BANKER_OPTIONS: BetType[] = ['bankerPair', 'banker6TwoCard', 'banker6ThreeCard'];
 
-export default function BettingBoard({ me, locked, betLimits, payoutMode, onPlaceBet, onClearBet, onConfirm }: {
+export default function BettingBoard({ me, locked, betLimits, payoutMode, bigRoad, unlimited, onPlaceBet, onClearBet, onConfirm }: {
   me: MeView;
   locked: boolean;
   betLimits: TableState['betLimits'];
   payoutMode: TableState['payoutMode'];
+  bigRoad: TableState['bigRoad'];
+  unlimited: boolean;
   onPlaceBet: (type: BetType, amount: number) => void;
   onClearBet: (type: BetType) => void;
   onConfirm: () => void;
 }) {
-  const [chipValue, setChipValue] = useState(CHIP_DENOMS[2].value);
+  const [chipValue, setChipValue] = useState(() => {
+    if (typeof window === 'undefined') return CHIP_DENOMS[2].value;
+    const saved = Number(localStorage.getItem('baccarat.lastChipValue'));
+    return CHIP_DENOMS.some((chip) => chip.value === saved) ? saved : CHIP_DENOMS[2].value;
+  });
   const betsByType = new Map(me.bets.map((bet) => [bet.type, bet.amount]));
   const remaining = me.chips - me.betTotal;
 
@@ -26,8 +33,8 @@ export default function BettingBoard({ me, locked, betLimits, payoutMode, onPlac
     if (locked || remaining <= 0) return;
     const current = betsByType.get(type) || 0;
     const isMain = type === 'player' || type === 'banker';
-    const min = isMain ? betLimits.mainMin : betLimits.sideMin;
-    const max = isMain ? betLimits.mainMax : betLimits.sideMax;
+    const min = unlimited ? 1 : (isMain ? betLimits.mainMin : betLimits.sideMin);
+    const max = unlimited ? me.chips : (isMain ? betLimits.mainMax : betLimits.sideMax);
     const addition = Math.min(chipValue, remaining, Math.max(0, max - current));
     if (addition <= 0) return;
     const next = current + addition;
@@ -64,12 +71,12 @@ export default function BettingBoard({ me, locked, betLimits, payoutMode, onPlac
       <div className="flex items-center justify-between px-1 text-sm text-zinc-300"><span>보유 칩 {formatKRW(remaining)}</span><span>베팅 합계 {formatKRW(me.betTotal)}</span></div>
       <div className="betting-zones grid grid-cols-[1fr_0.72fr_1fr] gap-1.5">
         <section className="bet-zone bet-zone-player">{betButton('player', true)}<div className="bet-options-grid">{PLAYER_OPTIONS.map((type) => betButton(type))}</div></section>
-        <section className="bet-zone bet-zone-center">{betButton('tie', true)}</section>
+        <section className="bet-zone bet-zone-center">{betButton('tie', true)}<div className="mt-2 min-h-0 overflow-hidden rounded-lg bg-emerald-950/45 p-1"><BigRoadGrid road={bigRoad} /></div></section>
         <section className="bet-zone bet-zone-banker">{betButton('banker', true)}<div className="bet-options-grid">{BANKER_OPTIONS.map((type) => betButton(type))}</div></section>
       </div>
-      <p className="text-[10px] text-center text-amber-100/60">메인 {formatKRW(betLimits.mainMin)}~{formatKRW(betLimits.mainMax)} · 옵션 {formatKRW(betLimits.sideMin)}~{formatKRW(betLimits.sideMax)}</p>
+      <p className="text-[10px] text-center text-amber-100/60">{unlimited ? 'FINAL ROUND · 베팅 한도 없음' : `메인 ${formatKRW(betLimits.mainMin)}~${formatKRW(betLimits.mainMax)} · 옵션 ${formatKRW(betLimits.sideMin)}~${formatKRW(betLimits.sideMax)}`}</p>
       <div className="bet-controls flex items-center gap-2">
-        <div className="chip-rail flex flex-1 items-center justify-center gap-2">{CHIP_DENOMS.map((denom) => <button key={denom.value} type="button" onClick={() => setChipValue(denom.value)} className="bet-chip rounded-full flex items-center justify-center font-bold border-2 transition" style={{ background: denom.color, color: denom.textColor, borderColor: chipValue === denom.value ? '#fff' : 'transparent', transform: chipValue === denom.value ? 'translateY(-3px)' : undefined }}>{denom.label}</button>)}</div>
+        <div className="chip-rail flex flex-1 items-center justify-center gap-2">{CHIP_DENOMS.map((denom) => <button key={denom.value} type="button" onClick={() => { setChipValue(denom.value); localStorage.setItem('baccarat.lastChipValue', String(denom.value)); }} className="bet-chip rounded-full flex items-center justify-center font-bold border-2 transition" style={{ background: denom.color, color: denom.textColor, borderColor: chipValue === denom.value ? '#fff' : 'transparent', transform: chipValue === denom.value ? 'translateY(-3px)' : undefined }}>{denom.label}</button>)}</div>
         <div className="bet-actions flex gap-2"><button type="button" data-testid="clear-all-bets" disabled={locked || me.confirmed || me.betTotal <= 0} onClick={clearAll} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-300 disabled:opacity-40">전체 취소</button><button type="button" data-testid="confirm-bets" disabled={locked || (!me.confirmed && me.betTotal <= 0)} onClick={onConfirm} className={`rounded-lg px-5 py-2 text-sm font-bold ${me.confirmed ? 'border border-amber-400 text-amber-200' : 'bg-amber-500 text-zinc-950'}`}>{me.confirmed ? '확정 취소' : '베팅 확정'}</button></div>
       </div>
     </div>

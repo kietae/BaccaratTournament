@@ -115,6 +115,7 @@ test('administrator awards the fastest correct team and can correct the selectio
   const players = Array.from({ length: 8 }, (_, index) => table.addPlayer(tournament, `player-${index}`, `Q${index}`));
   table.assignTeams(tournament, 2);
   table.startWorkshopQuiz(tournament, 'initial');
+  table.beginWorkshopGame(tournament);
   assert.equal(tournament.workshopQuiz.questionOrder.length, 10);
   assert.equal(new Set(tournament.workshopQuiz.questionOrder).size, 10);
   table.awardWorkshopPoint(tournament, tournament.teams[0].id);
@@ -131,7 +132,7 @@ test('administrator awards the fastest correct team and can correct the selectio
   assert.equal(playerView.workshopQuiz.awardedTeamId, tournament.teams[1].id);
 });
 
-test('OX quiz uses every question and can finish early when one player remains', () => {
+test('OX quiz uses every available question and can finish early when one player remains', () => {
   const tournament = table.createTournament({ name: 'OX' });
   table.addPlayer(tournament, 'player-1');
   table.addPlayer(tournament, 'player-2');
@@ -139,8 +140,98 @@ test('OX quiz uses every question and can finish early when one player remains',
 
   assert.equal(quiz.questionOrder.length, 17);
   assert.equal(new Set(quiz.questionOrder).size, 17);
+  table.beginWorkshopGame(tournament);
   table.finishWorkshopQuiz(tournament);
   assert.equal(quiz.status, 'finished');
+});
+
+test('employee re-entry restores the same participant and rotates the token', () => {
+  const tournament = table.createTournament({ initialChips: 10000 });
+  const player = table.addPlayer(tournament, '홍길동', '503605');
+  player.chips = 4321;
+  const oldToken = player.token;
+  const restored = table.rejoinPlayer(tournament, '홍길동', '503605');
+  assert.equal(restored.id, player.id);
+  assert.equal(restored.chips, 4321);
+  assert.notEqual(restored.token, oldToken);
+  assert.equal(tournament.tokenIndex.has(oldToken), false);
+  assert.throws(() => table.rejoinPlayer(tournament, '다른 이름', '503605'));
+});
+
+test('duplicate names are blocked and late joiners are assigned to the smallest team', () => {
+  const tournament = table.createTournament();
+  table.addPlayer(tournament, '가나다', 'A1');
+  table.addPlayer(tournament, '라마바', 'A2');
+  assert.throws(() => table.addPlayer(tournament, '가나다', 'A3'));
+  assert.throws(() => table.addPlayer(tournament, '새 이름', 'A1'));
+  table.assignTeams(tournament, 2);
+  const late = table.addPlayer(tournament, '늦은 참가자', 'A4');
+  const assigned = tournament.teams.find((team) => team.playerIds.includes(late.id));
+  assert.ok(assigned);
+  const target = tournament.teams.find((team) => team.id !== assigned.id);
+  table.movePlayerToTeam(tournament, late.id, target.id);
+  assert.equal(target.playerIds.includes(late.id), true);
+  assert.equal(assigned.playerIds.includes(late.id), false);
+});
+
+test('raffle selects only connected participants without a previous prize', () => {
+  const tournament = table.createTournament();
+  const eligible = table.addPlayer(tournament, 'eligible', 'R1');
+  const awarded = table.addPlayer(tournament, 'awarded', 'R2');
+  const offline = table.addPlayer(tournament, 'offline', 'R3');
+  eligible.connected = awarded.connected = true;
+  offline.connected = false;
+  tournament.prizeRecipientIds.add(awarded.id);
+  table.addRafflePrize(tournament, '상품');
+  assert.equal(table.drawRaffleWinner(tournament).playerId, eligible.id);
+});
+
+test('manually registered gift recipients are excluded from the raffle', () => {
+  const tournament = table.createTournament();
+  const received = table.addPlayer(tournament, 'gift received', 'G1');
+  const eligible = table.addPlayer(tournament, 'still eligible', 'G2');
+  received.connected = eligible.connected = true;
+  const gift = table.registerGiftRecipient(tournament, 'OX 퀴즈', received.id, '텀블러');
+  table.updateGiftRecipient(tournament, gift.category, '초성 퀴즈', received.id, '상품권');
+  table.addRafflePrize(tournament, '추첨 상품');
+  assert.equal(table.drawRaffleWinner(tournament).playerId, eligible.id);
+  assert.equal(tournament.awards.some((award) => award.playerId === received.id && award.title.includes('상품권')), true);
+});
+
+test('deleting the last gift record makes its recipient raffle eligible again', () => {
+  const tournament = table.createTournament();
+  const player = table.addPlayer(tournament, 'gift deleted', 'GD1');
+  player.connected = true;
+  const gift = table.registerGiftRecipient(tournament, '기타', player.id, '임시 선물');
+  assert.equal(tournament.prizeRecipientIds.has(player.id), true);
+  table.deleteGiftRecipient(tournament, gift.category);
+  assert.equal(tournament.prizeRecipientIds.has(player.id), false);
+});
+
+test('overall team leaderboard converts each game ranking to three two one points', () => {
+  const tournament = table.createTournament();
+  for (let index = 0; index < 6; index += 1) table.addPlayer(tournament, `team player ${index}`, `S${index}`);
+  table.assignTeams(tournament, 3);
+  table.startWorkshopQuiz(tournament, 'spiderman');
+  table.beginWorkshopGame(tournament);
+  table.setWorkshopTeamScore(tournament, tournament.teams[0].id, 10);
+  table.setWorkshopTeamScore(tournament, tournament.teams[1].id, 30);
+  table.setWorkshopTeamScore(tournament, tournament.teams[2].id, 20);
+  table.finishWorkshopQuiz(tournament);
+  const snapshot = buildSnapshot(tournament, null);
+  assert.equal(snapshot.teams.find((team) => team.id === tournament.teams[1].id).overallScore, 3);
+  assert.equal(snapshot.teams.find((team) => team.id === tournament.teams[2].id).overallScore, 2);
+  assert.equal(snapshot.teams.find((team) => team.id === tournament.teams[0].id).overallScore, 1);
+});
+
+test('the final baccarat round accepts any positive all-in amount', () => {
+  const tournament = table.createTournament({ initialChips: 10000, roundLimit: 7 });
+  const player = table.addPlayer(tournament, 'final bettor', 'B1');
+  tournament.status = 'active';
+  tournament.roundNo = 7;
+  table.placeBet(tournament, player.id, 'player', 1);
+  table.placeBet(tournament, player.id, 'player', player.chips);
+  assert.equal(table.currentBetTotal(tournament, player.id), player.chips);
 });
 
 function activeTable() {

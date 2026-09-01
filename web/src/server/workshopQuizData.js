@@ -39,10 +39,12 @@ const brands = [
 ].map(([answer, ...aliases], index) => ({ category: '브랜드', prompt: '조각난 로고의 브랜드는?', image: `/workshop/brands/q${String(index + 1).padStart(2, '0')}.png`, answerImage: `/workshop/brands-answers/q${String(index + 1).padStart(2, '0')}.png`, answer, aliases: [answer, ...aliases] }));
 
 const QUIZZES = {
-  initial: { title: '초성 퀴즈', input: 'text', questions: initial },
-  ox: { title: '긴가민가 OX 퀴즈', input: 'ox', questions: ox },
-  faces: { title: '눈·코·입 인물 퀴즈', input: 'text', questions: faces },
-  brands: { title: '뒤죽막죽 브랜드 맞추기', input: 'text', questions: brands }
+  initial: { title: '초성 퀴즈', mode: 'quiz', input: 'text', rules: ['초성을 보고 팀원과 정답을 추리합니다.', '정답을 알면 가장 먼저 손을 들고 외칩니다.', '오답인 팀은 해당 문제의 기회를 잃습니다.', '문제당 10초, 정답 1개당 1점입니다.'], questions: initial },
+  ox: { title: '긴가민가 OX 퀴즈', mode: 'quiz', input: 'ox', rules: ['문제를 읽고 맞으면 O, 틀리면 X 구역으로 이동합니다.', '정답 공개 후 틀린 참가자는 탈락합니다.', '최후의 1인이 남을 때까지 진행합니다.'], questions: ox },
+  faces: { title: '눈·코·입 인물 퀴즈', mode: 'quiz', input: 'text', rules: ['눈·코·입 사진 일부를 보고 인물 이름을 맞힙니다.', '팀별로 상의한 뒤 가장 먼저 손을 듭니다.', '문제당 제한시간은 5초이며 정답은 1점입니다.', '사진 검색은 금지입니다.'], questions: faces },
+  brands: { title: '뒤죽막죽 브랜드 맞추기', mode: 'quiz', input: 'text', rules: ['조각난 로고를 보고 브랜드를 맞힙니다.', '팀별로 상의한 뒤 가장 먼저 손을 듭니다.', '빠르게, 하지만 침착하게 정답을 말합니다.'], questions: brands },
+  spiderman: { title: '버텨줘! 스파이더맨', mode: 'offline', input: null, rules: ['각 팀 대표 1명이 같은 투척선에 섭니다.', '진행자의 구호에 맞춰 같은 종류의 끈끈이를 벽에 동시에 던집니다.', '손대지 않고 떨어질 때까지 관찰합니다.', '가장 늦게 떨어진 팀이 1등이며, 동시 낙하는 해당 팀만 재경기합니다.', '사람을 향해 던지지 말고 안전한 유리나 벽을 사용하세요.'], questions: [] },
+  moneyhunter: { title: '찰싹 머니헌터', mode: 'offline', input: null, rules: ['팀 대표 1명이 가면을 착용하고 끈끈이 도구를 사용합니다.', '모형 지폐는 금액 면이 바닥을 향하도록 배치합니다.', '같은 제한시간 동안 끈끈이로 지폐를 끌어옵니다.', '끌어온 지폐 금액 합계가 높은 순서로 순위를 정합니다.', '동점 팀은 대표가 다시 한 번 재경기합니다.'], questions: [] }
 };
 
 module.exports = { QUIZZES };
