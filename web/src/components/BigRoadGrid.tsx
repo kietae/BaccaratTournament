@@ -3,9 +3,9 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { BigRoad } from '@/lib/types';
 
-export default function BigRoadGrid({ road }: { road: BigRoad }) {
+export default function BigRoadGrid({ road, compact = false }: { road: BigRoad; compact?: boolean }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const cellPx = 18;
+  const cellPx = compact ? 14 : 18;
   const visibleCols = Math.max(road.cols, 6);
   const cellByPos = new Map(road.cells.map((c) => [`${c.col},${c.row}`, c]));
 
@@ -33,7 +33,7 @@ export default function BigRoadGrid({ road }: { road: BigRoad }) {
             <div key={i} className="flex items-center justify-center">
               {cell && (
                 <div
-                  className="rounded-full flex items-center justify-center text-[8px] font-bold text-white relative"
+                  className={`${compact ? 'text-[7px]' : 'text-[8px]'} rounded-full flex items-center justify-center font-bold text-white relative`}
                   style={{
                     width: cellPx - 3,
                     height: cellPx - 3,

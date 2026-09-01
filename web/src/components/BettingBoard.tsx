@@ -89,7 +89,7 @@ function RoadDashboard({ road, stats }: { road: TableState['bigRoad']; stats: Ta
   const optionTypes = [...PLAYER_OPTIONS, ...BANKER_OPTIONS];
   return (
     <section className="bet-road-dashboard col-span-3">
-      <div className="bet-road-grid"><BigRoadGrid road={road} /></div>
+      <div className="bet-road-grid"><BigRoadGrid road={road} compact /></div>
       <div className="bet-road-stats">
         <div className="bet-road-totals">
           <span><b>{stats.games}</b> 게임</span>

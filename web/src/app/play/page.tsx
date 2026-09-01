@@ -18,6 +18,7 @@ import WorkshopQuizGame from '@/components/WorkshopQuizGame';
 import { BET_TYPES } from '@/lib/betTypes';
 import { formatKRW } from '@/lib/chips';
 import { currentEventDisplay } from '@/lib/eventDisplay';
+import TournamentIntro from '@/components/TournamentIntro';
 
 const PHASE_LABEL: Record<TableState['phase'], string> = {
   'road-seeding': '초기 게임 진행',
@@ -50,6 +51,7 @@ export default function PlayPage() {
   const [state, setState] = useState<TableState | null>(null);
   const [connError, setConnError] = useState<string | null>(null);
   const [caption, setCaption] = useState<string | null>(null);
+  const [intro, setIntro] = useState<{ tournamentId: string; step: 1 | 2 } | null>(null);
   const lastLogAt = useRef(0);
   const wakeLockRef = useRef<{ released: boolean; release: () => Promise<void> } | null>(null);
 
@@ -122,6 +124,13 @@ export default function PlayPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!state || state.status !== 'active') return;
+    const storageKey = `baccarat.introSeen.${state.tournamentId}`;
+    if (localStorage.getItem(storageKey) || intro?.tournamentId === state.tournamentId) return;
+    setIntro({ tournamentId: state.tournamentId, step: 1 });
+  }, [state, intro?.tournamentId]);
+
   if (connError) return <main className="flex-1 flex items-center justify-center p-6 text-red-400">{connError}</main>;
   if (!state) return <main className="flex-1 flex items-center justify-center p-6 text-zinc-500">연결 중...</main>;
 
@@ -131,6 +140,12 @@ export default function PlayPage() {
   function joinNewTournament() {
     localStorage.removeItem(PLAYER_TOKEN_KEY);
     router.replace('/join');
+  }
+
+  function finishIntro() {
+    if (!intro) return;
+    localStorage.setItem(`baccarat.introSeen.${intro.tournamentId}`, '1');
+    setIntro(null);
   }
 
   async function enterLandscape() {
@@ -179,6 +194,7 @@ export default function PlayPage() {
 
   return (
     <>
+    {intro && <TournamentIntro step={intro.step} onNext={() => setIntro({ ...intro, step: 2 })} onFinish={finishIntro} />}
     <div className="landscape-gate fixed inset-0 z-50 flex-col items-center justify-center gap-5 bg-[radial-gradient(circle_at_top,#34204e,#0b0a12_68%)] p-8 text-center">
       <div className="rotate-phone" aria-hidden="true">📱</div>
       <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">바카라 게임은 가로모드 전용입니다.</p></div>
@@ -287,6 +303,21 @@ const SIDE_LABEL: Record<CardView['side'], string> = { player: '플레이어', b
 function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: CardView | null }) {
   const [controlPeel, setControlPeel] = useState<{ edge: Edge; pct: number; grip: number } | null>(null);
   const lastControlSent = useRef(0);
+  const announcedCard = useRef<string | null>(null);
+  const iCanSqueeze = Boolean(activeCard && state.isSqueezer && activeCard.needsSqueeze);
+
+  useEffect(() => {
+    if (!iCanSqueeze || !activeCard || announcedCard.current === activeCard.cardId) return;
+    announcedCard.current = activeCard.cardId;
+    try { navigator.vibrate?.([180, 80, 180]); } catch { /* unsupported */ }
+    if (!('speechSynthesis' in window)) return;
+    const message = new SpeechSynthesisUtterance(`${SIDE_LABEL[activeCard.side]} 카드, 스퀴즈할 차례입니다. 카드를 스퀴즈해 주세요.`);
+    message.lang = 'ko-KR';
+    message.rate = 0.92;
+    message.pitch = 1.05;
+    message.volume = 1;
+    window.speechSynthesis.speak(message);
+  }, [activeCard, iCanSqueeze]);
 
   function controlProgress(edge: Edge, pct: number, grip: number) {
     setControlPeel({ edge, pct, grip });
@@ -306,14 +337,14 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-1">
-      <p className="text-center text-sm text-zinc-400">
+      {iCanSqueeze ? <div role="alert" aria-live="assertive" className="participant-squeeze-alert mx-auto w-full max-w-xl rounded-2xl border-2 border-amber-300 bg-amber-300/15 px-4 py-2 text-center shadow-[0_0_32px_rgba(252,211,77,.3)]"><p className="text-xs font-black tracking-[.28em] text-amber-300">지금 내 차례</p><p className="text-2xl font-black text-white">카드를 스퀴즈해 주세요!</p></div> : <p className="text-center text-sm text-zinc-400">
         {state.squeezerNickname && activeCard
           ? `${SIDE_LABEL[activeCard.side]} 최대 베팅: ${state.squeezerNickname}`
           : '최대 베팅 참가자 없음'}
-      </p>
+      </p>}
 
       {activeCard && (() => {
-        const iCanSqueezeThisCard = state.isSqueezer && activeCard.needsSqueeze;
+        const iCanSqueezeThisCard = iCanSqueeze;
         return (
         <div className="flex-1 min-h-0 grid grid-cols-[minmax(92px,1fr)_minmax(190px,280px)_minmax(92px,1fr)] items-center gap-2">
           <CardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={1.5} showTotal />
