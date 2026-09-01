@@ -328,7 +328,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // Keep the exact same card-relative hand size on phones, the admin
       // monitor, and the broadcast screen. A fixed pixel cap made the hands
       // proportionally smaller as the projected card grew.
-      const thumbLength = Math.min(width, height) * 0.58;
+      const thumbLength = Math.min(width, height) * 0.406;
       const thumbWidth = thumbLength * 1.08;
       // On a short edge the thumbs spread toward the outer corners. On a long
       // edge they sit farther inward, over the vertically inset card indices.
