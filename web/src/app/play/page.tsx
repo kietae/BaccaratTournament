@@ -258,11 +258,13 @@ export default function PlayPage() {
 function TopBar({ state }: { state: TableState }) {
   const remaining = useCountdown(state.phaseEndsAt);
   const eventDisplay = currentEventDisplay(state);
+  const activeCard = state.cards.find((card) => card.dealt && !card.revealed);
+  const mySqueezeTurn = Boolean(state.isSqueezer && activeCard?.needsSqueeze && (state.phase === 'squeeze' || state.phase === 'extra-card'));
   return (
     <div className="flex items-center justify-between text-xs text-zinc-400 border-b border-zinc-800 pb-2">
       <div>
         <div className="text-amber-300 font-semibold">{eventDisplay.title}</div>
-        <div data-testid="phase-label">{eventDisplay.baccarat ? `Round ${state.roundNo}${state.roundLimit ? ` / ${state.roundLimit}` : ''} · ${PHASE_LABEL[state.phase]}` : eventDisplay.eyebrow}</div>
+        <div data-testid="phase-label" className={mySqueezeTurn ? 'font-black text-amber-200' : undefined}>{mySqueezeTurn ? '지금 내 차례 · 반짝이는 화살표 바를 밀어주세요' : eventDisplay.baccarat ? `Round ${state.roundNo}${state.roundLimit ? ` / ${state.roundLimit}` : ''} · ${PHASE_LABEL[state.phase]}` : eventDisplay.eyebrow}</div>
       </div>
       <div className="text-right">
         <div className="text-zinc-200 font-medium">{state.me ? formatKRW(state.me.chips) : ''}</div>
@@ -337,7 +339,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-1">
-      {iCanSqueeze ? <p role="alert" aria-live="assertive" className="text-center text-sm font-black text-amber-200">지금 내 차례 · 반짝이는 화살표 바를 밀어주세요</p> : <p className="text-center text-sm text-zinc-400">
+      {!iCanSqueeze && <p className="text-center text-sm text-zinc-400">
         {state.squeezerNickname && activeCard
           ? `${SIDE_LABEL[activeCard.side]} 최대 베팅: ${state.squeezerNickname}`
           : '최대 베팅 참가자 없음'}
@@ -524,7 +526,7 @@ function ResultPhase({ state, me, onJoinNew }: { state: TableState; me: NonNulla
       {state.miniGame.status !== 'idle' && <KeynesMiniGame state={state} onSubmit={submitMiniGame} />}
       {state.miniGame.status === 'idle' && result && (
         <div className="flex flex-col gap-4">
-          <ResultHands cards={state.cards} result={result} scale={1.15} />
+          <ResultHands cards={state.cards} result={result} scale={1} />
           <RoundResultCallout result={result} />
         </div>
       )}
