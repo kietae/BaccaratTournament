@@ -1,6 +1,6 @@
 'use strict';
 
-const { bigRoadSnapshot, currentBetTotal, cardNeedsSqueeze, activeSqueezerId } = require('./table');
+const { bigRoadSnapshot, roadStatsSnapshot, currentBetTotal, cardNeedsSqueeze, activeSqueezerId } = require('./table');
 const { QUIZZES } = require('./workshopQuizData');
 
 // The squeezer sees the true rank/suit of ONLY the card currently under
@@ -181,6 +181,7 @@ function buildSnapshot(t, forPlayerId) {
     players,
     playerCount: players.length,
     bigRoad: bigRoadSnapshot(t),
+    roadStats: roadStatsSnapshot(t),
     totalPot,
     mainBetSummary,
     squeezerId: currentSqueezerId,

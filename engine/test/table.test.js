@@ -19,6 +19,41 @@ test('administrator tournament defaults match the event setup', () => {
   });
 });
 
+test('road statistics include seeded games and all option hits', () => {
+  const tournament = table.createTournament();
+  tournament.roundHistory = [
+    { outcome: 'banker', seeded: true, sideBetHits: ['bankerPair'] },
+    { outcome: 'player', sideBetHits: ['playerPair', 'player7TwoCard'] },
+    { outcome: 'tie', sideBetHits: ['playerPair', 'bankerPair'] },
+    { outcome: 'banker', sideBetHits: ['banker6ThreeCard', 'comboP7B6'] }
+  ];
+
+  assert.deepEqual(table.roadStatsSnapshot(tournament), {
+    games: 4,
+    player: 1,
+    banker: 2,
+    tie: 1,
+    playerPair: 2,
+    bankerPair: 2,
+    banker6TwoCard: 0,
+    banker6ThreeCard: 1,
+    player7TwoCard: 1,
+    player7ThreeCard: 0,
+    comboP7B6: 1
+  });
+});
+
+test('big road marks player 7 and banker 6 wins in the center', () => {
+  const tournament = table.createTournament();
+  tournament.roundHistory = [
+    { outcome: 'player', playerTotal: 7, bankerTotal: 4 },
+    { outcome: 'banker', playerTotal: 3, bankerTotal: 6 },
+    { outcome: 'player', playerTotal: 8, bankerTotal: 2 }
+  ];
+
+  assert.deepEqual(table.bigRoadSnapshot(tournament).cells.map((cell) => cell.marker), ['7', '6', null]);
+});
+
 test('group rock paper scissors shows final choices before revealing the champion', () => {
   const tournament = table.createTournament();
   const winner = table.addPlayer(tournament, 'Winner');

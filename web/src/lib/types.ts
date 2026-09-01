@@ -53,6 +53,7 @@ export interface BigRoadCell {
   row: number;
   result: 'player' | 'banker';
   ties: number;
+  marker: '7' | '6' | null;
 }
 
 export interface BigRoad {
@@ -180,6 +181,19 @@ export interface TableState {
   players: PlayerView[];
   playerCount: number;
   bigRoad: BigRoad;
+  roadStats: {
+    games: number;
+    player: number;
+    banker: number;
+    tie: number;
+    playerPair: number;
+    bankerPair: number;
+    banker6TwoCard: number;
+    banker6ThreeCard: number;
+    player7TwoCard: number;
+    player7ThreeCard: number;
+    comboP7B6: number;
+  };
   totalPot: number;
   mainBetSummary: {
     player: { bettors: number; amount: number };

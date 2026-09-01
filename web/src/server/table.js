@@ -677,12 +677,37 @@ function settleRound(t) {
     roundNo: t.round.roundNo,
     outcome: result.outcome,
     playerTotal: result.playerTotal,
-    bankerTotal: result.bankerTotal
+    bankerTotal: result.bankerTotal,
+    sideBetHits: Object.entries(result.sideBets || {}).filter(([, hit]) => hit).map(([type]) => type)
   });
 }
 
 function bigRoadSnapshot(t) {
-  return buildBigRoad(t.roundHistory.map((r) => r.outcome));
+  return buildBigRoad(t.roundHistory);
+}
+
+function roadStatsSnapshot(t) {
+  const counts = {
+    games: 0,
+    player: 0,
+    banker: 0,
+    tie: 0,
+    playerPair: 0,
+    bankerPair: 0,
+    banker6TwoCard: 0,
+    banker6ThreeCard: 0,
+    player7TwoCard: 0,
+    player7ThreeCard: 0,
+    comboP7B6: 0
+  };
+  for (const round of t.roundHistory) {
+    counts.games += 1;
+    counts[round.outcome] += 1;
+    for (const type of round.sideBetHits || []) {
+      if (Object.hasOwn(counts, type)) counts[type] += 1;
+    }
+  }
+  return counts;
 }
 
 function markNextRound(t) {
@@ -701,11 +726,13 @@ function seedRoad(t, count = 3) {
   for (let i = 0; i < count; i++) {
     const p1 = draw(), b1 = draw(), p2 = draw(), b2 = draw();
     const result = engine.resolveRound([p1, p2], [b1, b2], draw);
+    result.sideBets = engine.evaluateSideBets(result);
     t.roundHistory.push({
       roundNo: i - count + 1,
       outcome: result.outcome,
       playerTotal: result.playerTotal,
       bankerTotal: result.bankerTotal,
+      sideBetHits: Object.entries(result.sideBets).filter(([, hit]) => hit).map(([type]) => type),
       seeded: true
     });
   }
@@ -716,6 +743,7 @@ function revealSeedRoadGame(t) {
   const draw = () => t.shoe.draw();
   const p1 = draw(), b1 = draw(), p2 = draw(), b2 = draw();
   const result = engine.resolveRound([p1, p2], [b1, b2], draw);
+  result.sideBets = engine.evaluateSideBets(result);
   t.seedProgress += 1;
   t.seedPreview = {
     index: t.seedProgress,
@@ -737,6 +765,7 @@ function revealSeedRoadGame(t) {
     outcome: result.outcome,
     playerTotal: result.playerTotal,
     bankerTotal: result.bankerTotal,
+    sideBetHits: Object.entries(result.sideBets).filter(([, hit]) => hit).map(([type]) => type),
     seeded: true
   });
   return t.seedProgress >= t.initialRoadGames;
@@ -970,7 +999,7 @@ module.exports = {
   beginDealing, dealNextInitialCard, beginSqueezeForCurrentCard, dealCalledThirdCard, completeDealerCall,
   cardNeedsSqueeze, activeSqueezerId, autoRevealCard,
   squeezeProgress, squeezeReveal, settleRound,
-  bigRoadSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
+  bigRoadSnapshot, roadStatsSnapshot, markNextRound, startNextRound, seedRoad, revealSeedRoadGame, startTournament, roundLimitReached,
   startMiniGame, submitMiniGameNumber, revealMiniGame, submitGroupRps, excludeDisconnectedGroupRpsPlayers, nextGroupRpsRound, enterRaffle, addRafflePrize, resetRaffle, drawRaffleWinner, recordTournamentAwards, currentBetTotal, returnToGameSelection
   , assignTeams, movePlayerToTeam, startWorkshopQuiz, beginWorkshopGame, revealWorkshopAnswer, awardWorkshopPoint, setWorkshopTeamScore, setGamePrizes, setWorkshopPlayerWinners, registerGiftRecipient, updateGiftRecipient, deleteGiftRecipient, nextWorkshopQuestion, finishWorkshopQuiz, resetWorkshopQuiz
 };

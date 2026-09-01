@@ -6,13 +6,14 @@ const MAX_ROWS = 6;
 // in a column; a change of side starts a new column; a run that outgrows
 // MAX_ROWS continues sideways along the bottom row ("dragon tail"); ties
 // don't start a new column, they annotate the most recent mark with a count.
-function buildBigRoad(outcomes) {
+function buildBigRoad(rounds) {
   const cells = [];
   const grid = new Map(); // "col,row" -> cell
   let last = null; // { col, row, result }
   let leadingTies = 0;
 
-  for (const outcome of outcomes) {
+  for (const round of rounds) {
+    const outcome = typeof round === 'string' ? round : round.outcome;
     if (outcome === 'tie') {
       if (last) {
         last.cell.ties += 1;
@@ -36,7 +37,10 @@ function buildBigRoad(outcomes) {
       col = last.col + 1; row = 0;
     }
 
-    const cell = { col, row, result: outcome, ties: 0 };
+    const marker = outcome === 'player' && round.playerTotal === 7 ? '7'
+      : outcome === 'banker' && round.bankerTotal === 6 ? '6'
+        : null;
+    const cell = { col, row, result: outcome, ties: 0, marker };
     grid.set(col + ',' + row, cell);
     cells.push(cell);
     last = { col, row, result: outcome, cell };

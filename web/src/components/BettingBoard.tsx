@@ -10,12 +10,13 @@ import BigRoadGrid from './BigRoadGrid';
 const PLAYER_OPTIONS: BetType[] = ['playerPair', 'player7TwoCard', 'player7ThreeCard', 'comboP7B6'];
 const BANKER_OPTIONS: BetType[] = ['bankerPair', 'banker6TwoCard', 'banker6ThreeCard'];
 
-export default function BettingBoard({ me, locked, betLimits, payoutMode, bigRoad, unlimited, onPlaceBet, onClearBet, onConfirm }: {
+export default function BettingBoard({ me, locked, betLimits, payoutMode, bigRoad, roadStats, unlimited, onPlaceBet, onClearBet, onConfirm }: {
   me: MeView;
   locked: boolean;
   betLimits: TableState['betLimits'];
   payoutMode: TableState['payoutMode'];
   bigRoad: TableState['bigRoad'];
+  roadStats: TableState['roadStats'];
   unlimited: boolean;
   onPlaceBet: (type: BetType, amount: number) => void;
   onClearBet: (type: BetType) => void;
@@ -71,8 +72,9 @@ export default function BettingBoard({ me, locked, betLimits, payoutMode, bigRoa
       <div className="flex items-center justify-between px-1 text-sm text-zinc-300"><span>보유 칩 {formatKRW(remaining)}</span><span>베팅 합계 {formatKRW(me.betTotal)}</span></div>
       <div className="betting-zones grid grid-cols-[1fr_0.72fr_1fr] gap-1.5">
         <section className="bet-zone bet-zone-player">{betButton('player', true)}<div className="bet-options-grid">{PLAYER_OPTIONS.map((type) => betButton(type))}</div></section>
-        <section className="bet-zone bet-zone-center">{betButton('tie', true)}<div className="mt-2 min-h-0 overflow-hidden rounded-lg bg-emerald-950/45 p-1"><BigRoadGrid road={bigRoad} /></div></section>
+        <section className="bet-zone bet-zone-center">{betButton('tie', true)}</section>
         <section className="bet-zone bet-zone-banker">{betButton('banker', true)}<div className="bet-options-grid">{BANKER_OPTIONS.map((type) => betButton(type))}</div></section>
+        <RoadDashboard road={bigRoad} stats={roadStats} />
       </div>
       <p className="text-[10px] text-center text-amber-100/60">{unlimited ? 'FINAL ROUND · 베팅 한도 없음' : `메인 ${formatKRW(betLimits.mainMin)}~${formatKRW(betLimits.mainMax)} · 옵션 ${formatKRW(betLimits.sideMin)}~${formatKRW(betLimits.sideMax)}`}</p>
       <div className="bet-controls flex items-center gap-2">
@@ -80,5 +82,28 @@ export default function BettingBoard({ me, locked, betLimits, payoutMode, bigRoa
         <div className="bet-actions flex gap-2"><button type="button" data-testid="clear-all-bets" disabled={locked || me.confirmed || me.betTotal <= 0} onClick={clearAll} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-300 disabled:opacity-40">전체 취소</button><button type="button" data-testid="confirm-bets" disabled={locked || (!me.confirmed && me.betTotal <= 0)} onClick={onConfirm} className={`rounded-lg px-5 py-2 text-sm font-bold ${me.confirmed ? 'border border-amber-400 text-amber-200' : 'bg-amber-500 text-zinc-950'}`}>{me.confirmed ? '확정 취소' : '베팅 확정'}</button></div>
       </div>
     </div>
+  );
+}
+
+function RoadDashboard({ road, stats }: { road: TableState['bigRoad']; stats: TableState['roadStats'] }) {
+  const optionTypes = [...PLAYER_OPTIONS, ...BANKER_OPTIONS];
+  return (
+    <section className="bet-road-dashboard col-span-3">
+      <div className="bet-road-grid"><BigRoadGrid road={road} /></div>
+      <div className="bet-road-stats">
+        <div className="bet-road-totals">
+          <span><b>{stats.games}</b> 게임</span>
+          <span className="text-blue-200">P <b>{stats.player}</b></span>
+          <span className="text-red-200">B <b>{stats.banker}</b></span>
+          <span className="text-emerald-200">T <b>{stats.tie}</b></span>
+        </div>
+        <div className="bet-road-options">
+          {optionTypes.map((type) => {
+            const definition = BET_TYPES.find((bet) => bet.type === type)!;
+            return <span key={type}>{definition.label} <b>{stats[type]}</b></span>;
+          })}
+        </div>
+      </div>
+    </section>
   );
 }

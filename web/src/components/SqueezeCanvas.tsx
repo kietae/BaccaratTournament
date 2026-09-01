@@ -328,7 +328,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       // Keep the exact same card-relative hand size on phones, the admin
       // monitor, and the broadcast screen. A fixed pixel cap made the hands
       // proportionally smaller as the projected card grew.
-      const thumbLength = Math.min(width, height) * 0.406;
+      const thumbLength = Math.min(width, height) * 0.44;
       const thumbWidth = thumbLength * 1.08;
       // On a short edge the thumbs spread toward the outer corners. On a long
       // edge they sit farther inward, over the vertically inset card indices.
@@ -342,10 +342,12 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       function drawThumb(tangent: number, thumbAngle: number) {
         const { pull } = pullAt(tangent);
         const foldDepth = pull * (LONG_EDGES.has(edge) ? 0.56 : 0.54);
-        // Keep the thumb pad on the flap itself, between the crease and the
-        // moving edge. Bias toward the edge so it still covers the index.
+        // The corner index is painted just behind the moving edge of the
+        // flap. Track that material point instead of overshooting the tip;
+        // otherwise the hand moves faster than the card and uncovers it.
         const tipDepth = pull * FLAP_TIP_SCALE;
-        const thumbDepth = foldDepth + (tipDepth - foldDepth) * (LONG_EDGES.has(edge) ? 1.2 : 1.02);
+        const indexDepthAlongFlap = LONG_EDGES.has(edge) ? 0.88 : 0.94;
+        const thumbDepth = foldDepth + (tipDepth - foldDepth) * indexDepthAlongFlap;
         const thumbTip = edge === 'left' ? { x: thumbDepth, y: tangent }
           : edge === 'right' ? { x: width - thumbDepth, y: tangent }
             : edge === 'top' ? { x: tangent, y: thumbDepth }
@@ -353,13 +355,6 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         ctx.save();
         ctx.translate(thumbTip.x, thumbTip.y);
         ctx.rotate(thumbAngle);
-        // An opaque thumb pad beneath the photographic sprite guarantees
-        // that transparent pixels around the image cannot expose the corner
-        // rank on a large remote canvas.
-        ctx.fillStyle = '#d69a78';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, thumbLength * 0.62, thumbWidth * 0.61, 0, 0, Math.PI * 2);
-        ctx.fill();
         if (thumbImage.complete && thumbImage.naturalWidth > 0) {
           ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
           ctx.shadowBlur = 7;

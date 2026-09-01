@@ -273,6 +273,7 @@ function BettingPhase({ state, me }: { state: TableState; me: NonNullable<TableS
       betLimits={state.betLimits}
       payoutMode={state.payoutMode}
       bigRoad={state.bigRoad}
+      roadStats={state.roadStats}
       unlimited={state.isFinalRound}
       onPlaceBet={placeBet}
       onClearBet={clearBet}
