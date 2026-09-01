@@ -51,17 +51,25 @@ function BettingGuide() {
 function SqueezeGuide() {
   return (
     <div className="grid items-center gap-4 sm:grid-cols-[.8fr_1.2fr]">
-      <div className="mx-auto h-[12rem] aspect-[11/16] overflow-hidden rounded-2xl border border-amber-300/45 bg-black shadow-xl sm:h-[14rem]">
-        <AnimatedSqueeze />
+      <div className="mx-auto flex items-center gap-2">
+        <DemoControl axis="vertical" active />
+        <div className="h-[12rem] aspect-[11/16] overflow-hidden rounded-2xl border border-amber-300/45 bg-black shadow-xl sm:h-[14rem]">
+          <AnimatedSqueeze />
+        </div>
+        <DemoControl axis="horizontal" />
       </div>
       <div className="space-y-3">
-        <GuideLine number="1" text="카드의 위·아래·왼쪽·오른쪽 가장자리 중 한 곳을 누르세요." />
-        <GuideLine number="2" text="손가락을 카드 안쪽으로 천천히 끌어 숫자를 확인하세요." />
+        <GuideLine number="1" text="카드가 아니라, 카드 양옆의 ↑↓ 또는 ←→ 조작 바를 누르세요." />
+        <GuideLine number="2" text="세로 바는 위·아래로, 가로 바는 왼쪽·오른쪽으로 천천히 밀어주세요." />
         <GuideLine number="3" text="끝까지 당기면 카드가 공개됩니다. 중간에 놓으면 원래대로 돌아갑니다." />
         <div className="rounded-xl bg-blue-500/10 p-3 text-sm font-semibold text-blue-100">내가 최고 베팅자라면 화면에 스퀴즈 안내가 나타납니다. 안내가 보이면 직접 카드를 열어주세요.</div>
       </div>
     </div>
   );
+}
+
+function DemoControl({ axis, active = false }: { axis: 'vertical' | 'horizontal'; active?: boolean }) {
+  return <div className={`${active ? 'animate-pulse border-amber-200 bg-amber-300/20' : 'border-amber-300/35 bg-black/45'} flex shrink-0 items-center justify-center rounded-full border text-sm font-black text-amber-200 ${axis === 'vertical' ? 'h-24 w-7 leading-4' : 'h-10 w-10'}`}>{axis === 'vertical' ? <span className="text-center">↑<br/>↓</span> : '←→'}</div>;
 }
 
 function AnimatedSqueeze() {
