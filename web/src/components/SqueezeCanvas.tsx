@@ -332,9 +332,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
       const thumbWidth = thumbLength * 1.08;
       // On a short edge the thumbs spread toward the outer corners. On a long
       // edge they sit farther inward, over the vertically inset card indices.
-      const cornerInset = LONG_EDGES.has(edge)
-        ? clamp(tangentSize * 0.095, thumbWidth * 0.5, tangentSize * 0.14)
-        : clamp(tangentSize * 0.1, thumbWidth * 0.52, tangentSize * 0.14);
+      const cornerInset = tangentSize * (LONG_EDGES.has(edge) ? 0.16 : 0.14);
 
       // The local controller also needs the virtual fingers: without them the
       // card index is exposed immediately on the participant's phone.
@@ -346,7 +344,7 @@ export default function SqueezeCanvas(props: SqueezeCanvasProps) {
         // flap. Track that material point instead of overshooting the tip;
         // otherwise the hand moves faster than the card and uncovers it.
         const tipDepth = pull * FLAP_TIP_SCALE;
-        const indexDepthAlongFlap = LONG_EDGES.has(edge) ? 0.88 : 0.94;
+        const indexDepthAlongFlap = LONG_EDGES.has(edge) ? 0.82 : 0.84;
         const thumbDepth = foldDepth + (tipDepth - foldDepth) * indexDepthAlongFlap;
         const thumbTip = edge === 'left' ? { x: thumbDepth, y: tangent }
           : edge === 'right' ? { x: width - thumbDepth, y: tangent }

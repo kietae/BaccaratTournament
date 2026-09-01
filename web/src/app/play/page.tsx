@@ -311,7 +311,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
     announcedCard.current = activeCard.cardId;
     try { navigator.vibrate?.([180, 80, 180]); } catch { /* unsupported */ }
     if (!('speechSynthesis' in window)) return;
-    const message = new SpeechSynthesisUtterance(`${SIDE_LABEL[activeCard.side]} 카드, 스퀴즈할 차례입니다. 카드를 스퀴즈해 주세요.`);
+    const message = new SpeechSynthesisUtterance(`${SIDE_LABEL[activeCard.side]} 카드, 스퀴즈할 차례입니다. 화살표 조작 바를 밀어주세요.`);
     message.lang = 'ko-KR';
     message.rate = 0.92;
     message.pitch = 1.05;
@@ -337,7 +337,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-1">
-      {iCanSqueeze ? <div role="alert" aria-live="assertive" className="participant-squeeze-alert mx-auto w-full max-w-xl rounded-2xl border-2 border-amber-300 bg-amber-300/15 px-4 py-2 text-center shadow-[0_0_32px_rgba(252,211,77,.3)]"><p className="text-xs font-black tracking-[.28em] text-amber-300">지금 내 차례</p><p className="text-2xl font-black text-white">카드를 스퀴즈해 주세요!</p></div> : <p className="text-center text-sm text-zinc-400">
+      {iCanSqueeze ? <p role="alert" aria-live="assertive" className="text-center text-sm font-black text-amber-200">지금 내 차례 · 반짝이는 화살표 바를 밀어주세요</p> : <p className="text-center text-sm text-zinc-400">
         {state.squeezerNickname && activeCard
           ? `${SIDE_LABEL[activeCard.side]} 최대 베팅: ${state.squeezerNickname}`
           : '최대 베팅 참가자 없음'}
@@ -350,7 +350,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
           <CardRow label="PLAYER" cards={state.cards.filter((c) => c.side === 'player')} activeId={activeCard?.cardId} scale={1.5} showTotal />
           <div className="flex flex-col items-center gap-1 min-h-0">
           {activeCard.needsSqueeze ? <div className="flex items-center justify-center gap-2 w-full">
-            {iCanSqueezeThisCard && <SwipeControl axis="vertical" onProgress={controlProgress} onRelease={controlRelease} />}
+            {iCanSqueezeThisCard && <SwipeControl axis="vertical" highlight={!controlPeel} onProgress={controlProgress} onRelease={controlRelease} />}
             <div data-testid="squeeze-stage" className="squeeze-stage rounded-xl overflow-hidden shadow-2xl border border-amber-600/30 aspect-[11/16] max-h-[calc(100svh-6.5rem)]">
               <SqueezeCanvas
                 key={activeCard.cardId}
@@ -364,7 +364,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
                 showThumbs
               />
             </div>
-            {iCanSqueezeThisCard && <SwipeControl axis="horizontal" onProgress={controlProgress} onRelease={controlRelease} />}
+            {iCanSqueezeThisCard && <SwipeControl axis="horizontal" highlight={!controlPeel} onProgress={controlProgress} onRelease={controlRelease} />}
           </div> : <div className="text-center text-sm text-amber-100/70">딜러 오픈</div>}
           </div>
           <CardRow label="BANKER" cards={state.cards.filter((c) => c.side === 'banker')} activeId={activeCard?.cardId} scale={1.5} showTotal />
@@ -427,8 +427,9 @@ function BettingCountdown({ state }: { state: TableState }) {
   return <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center" aria-live="assertive"><div className="countdown-pop text-8xl font-black text-amber-300 drop-shadow-[0_0_35px_rgba(251,191,36,0.8)]">{remaining}</div></div>;
 }
 
-function SwipeControl({ axis, onProgress, onRelease }: {
+function SwipeControl({ axis, highlight = false, onProgress, onRelease }: {
   axis: 'vertical' | 'horizontal';
+  highlight?: boolean;
   onProgress: (edge: Edge, pct: number, grip: number) => void;
   onRelease: (edge: Edge, pct: number, willReveal: boolean, grip: number) => void;
 }) {
@@ -462,7 +463,7 @@ function SwipeControl({ axis, onProgress, onRelease }: {
   return <div
     role="application"
     aria-label={axis === 'vertical' ? '위아래 스퀴즈 조작' : '좌우 스퀴즈 조작'}
-    className={`squeeze-control shrink-0 rounded-full border border-amber-300/35 bg-black/45 text-amber-200 flex items-center justify-center select-none ${axis === 'vertical' ? 'h-36 w-9' : 'h-12 w-12'}`}
+    className={`${highlight ? 'squeeze-control-highlight' : ''} squeeze-control shrink-0 rounded-full border border-amber-300/35 bg-black/45 text-amber-200 flex items-center justify-center select-none ${axis === 'vertical' ? 'h-36 w-9' : 'h-12 w-12'}`}
     style={{ touchAction: 'none' }}
     onPointerDown={(event) => {
       const edge: Edge = axis === 'vertical' ? 'top' : 'left';
@@ -473,7 +474,7 @@ function SwipeControl({ axis, onProgress, onRelease }: {
     onPointerUp={finish}
     onPointerCancel={finish}
   >
-    <span className={`font-black text-lg ${axis === 'horizontal' ? 'whitespace-nowrap' : 'leading-5 text-center'}`}>{axis === 'vertical' ? <>↑<br />↓</> : '←→'}</span>
+    <span className={`${highlight ? 'squeeze-control-arrow-highlight' : ''} font-black text-lg ${axis === 'horizontal' ? 'whitespace-nowrap' : 'leading-5 text-center'}`}>{axis === 'vertical' ? <>↑<br />↓</> : '←→'}</span>
   </div>;
 }
 

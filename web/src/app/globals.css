@@ -155,7 +155,12 @@ body {
   50% { transform: scale(1.025); box-shadow: 0 0 38px rgb(251 191 36 / 0.42); }
 }
 .broadcast-squeezer { animation: broadcast-squeezer-pulse 1.25s ease-in-out infinite; }
-.participant-squeeze-alert { animation: broadcast-squeezer-pulse 0.9s ease-in-out infinite; }
+@keyframes squeeze-control-guide {
+  0%, 100% { color: rgb(253 230 138); filter: drop-shadow(0 0 2px rgb(251 191 36 / 0.4)); transform: scale(1); }
+  50% { color: white; filter: drop-shadow(0 0 10px rgb(251 191 36)); transform: scale(1.3); }
+}
+.squeeze-control-highlight { border-color: rgb(253 230 138 / 0.9); box-shadow: 0 0 18px rgb(251 191 36 / 0.42); }
+.squeeze-control-arrow-highlight { animation: squeeze-control-guide 0.72s ease-in-out infinite; }
 
 @keyframes seed-card-deal {
   from { opacity: 0; transform: translateY(-28px) rotate(-5deg) scale(0.86); }
@@ -178,7 +183,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .seed-card-deal, .seed-result-call, .broadcast-squeezer, .participant-squeeze-alert { opacity: 1; animation: none; }
+  .seed-card-deal, .seed-result-call, .broadcast-squeezer, .squeeze-control-arrow-highlight { opacity: 1; animation: none; }
 }
 
 @keyframes rotate-phone {
