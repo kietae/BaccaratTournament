@@ -9,16 +9,18 @@ export default function TournamentIntro({ step, onNext, onFinish }: {
   onFinish: () => void;
 }) {
   return (
-    <div className="tournament-intro fixed inset-0 z-40 flex items-center justify-center bg-black/90 p-3 backdrop-blur-sm">
-      <section className="w-full max-w-3xl overflow-hidden rounded-3xl border border-amber-300/35 bg-[radial-gradient(circle_at_top,#243f35,#0d1512_72%)] p-4 text-white shadow-2xl sm:p-6">
-        <div className="mb-3 flex items-center justify-between">
+    <div className="tournament-intro fixed inset-0 z-40 flex min-h-0 items-center justify-center bg-black/90 p-3 backdrop-blur-sm">
+      <section className="tournament-intro-panel flex w-full max-w-3xl min-h-0 flex-col overflow-hidden rounded-3xl border border-amber-300/35 bg-[radial-gradient(circle_at_top,#243f35,#0d1512_72%)] text-white shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
           <div><p className="text-[10px] font-bold tracking-[.28em] text-amber-300">HOW TO PLAY</p><h2 className="text-xl font-black sm:text-2xl">바카라 토너먼트 안내</h2></div>
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-zinc-300">{step} / 2</span>
         </div>
 
-        {step === 1 ? <BettingGuide /> : <SqueezeGuide />}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6">
+          {step === 1 ? <BettingGuide /> : <SqueezeGuide />}
+        </div>
 
-        <div className="mt-4 flex justify-end">
+        <div className="flex shrink-0 justify-end border-t border-white/10 bg-[#0d1512]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
           {step === 1
             ? <button type="button" onClick={onNext} className="rounded-xl bg-amber-300 px-6 py-3 text-sm font-black text-zinc-950">다음 · 스퀴즈 방법</button>
             : <button type="button" onClick={onFinish} className="rounded-xl bg-amber-300 px-8 py-3 text-sm font-black text-zinc-950">확인하고 게임 시작</button>}

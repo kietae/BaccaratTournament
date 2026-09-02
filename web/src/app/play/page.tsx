@@ -186,7 +186,7 @@ export default function PlayPage() {
   );
 
   if (state.miniGame.status !== 'idle') return (
-    <main className="h-[100svh] overflow-hidden flex flex-col gap-1.5 p-2 max-w-3xl mx-auto w-full">
+    <main className="play-shell flex flex-col gap-1.5 p-2 max-w-3xl mx-auto w-full">
       <TopBar state={state} />
       <div className="flex-1 min-h-0 flex items-center justify-center"><KeynesMiniGame state={state} onSubmit={submitMiniGame} /></div>
     </main>
@@ -200,7 +200,7 @@ export default function PlayPage() {
       <div><h1 className="text-2xl font-black text-amber-100">휴대폰을 가로로 돌려주세요</h1><p className="mt-2 text-sm text-zinc-400">바카라 게임은 가로모드 전용입니다.</p></div>
       <button type="button" onClick={enterLandscape} className="rounded-xl bg-amber-400 px-6 py-3 font-black text-zinc-950 active:scale-[0.98]">가로모드로 전환</button>
     </div>
-    <main className="play-shell h-[100svh] overflow-hidden flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
+    <main className="play-shell flex flex-col gap-3 p-3 max-w-md mx-auto w-full">
       <TopBar state={state} />
       <BettingCountdown state={state} />
 
@@ -261,7 +261,7 @@ function TopBar({ state }: { state: TableState }) {
   const activeCard = state.cards.find((card) => card.dealt && !card.revealed);
   const mySqueezeTurn = Boolean(state.isSqueezer && activeCard?.needsSqueeze && (state.phase === 'squeeze' || state.phase === 'extra-card'));
   return (
-    <div className="flex items-center justify-between text-xs text-zinc-400 border-b border-zinc-800 pb-2">
+    <div className="play-topbar flex shrink-0 items-center justify-between text-xs text-zinc-400 border-b border-zinc-800 pb-2">
       <div>
         <div className="text-amber-300 font-semibold">{eventDisplay.title}</div>
         <div data-testid="phase-label" className={mySqueezeTurn ? 'font-black text-amber-200' : undefined}>{mySqueezeTurn ? '지금 내 차례 · 반짝이는 화살표 바를 밀어주세요' : eventDisplay.baccarat ? `Round ${state.roundNo}${state.roundLimit ? ` / ${state.roundLimit}` : ''} · ${PHASE_LABEL[state.phase]}` : eventDisplay.eyebrow}</div>
@@ -353,7 +353,7 @@ function SqueezePhase({ state, activeCard }: { state: TableState; activeCard: Ca
           <div className="flex flex-col items-center gap-1 min-h-0">
           {activeCard.needsSqueeze ? <div className="flex items-center justify-center gap-2 w-full">
             {iCanSqueezeThisCard && <SwipeControl axis="vertical" highlight={!controlPeel} onProgress={controlProgress} onRelease={controlRelease} />}
-            <div data-testid="squeeze-stage" className="squeeze-stage rounded-xl overflow-hidden shadow-2xl border border-amber-600/30 aspect-[11/16] max-h-[calc(100svh-6.5rem)]">
+            <div data-testid="squeeze-stage" className="squeeze-stage rounded-xl overflow-hidden shadow-2xl border border-amber-600/30 aspect-[11/16] max-h-[calc(100dvh-6.5rem)]">
               <SqueezeCanvas
                 key={activeCard.cardId}
                 mode="remote"
